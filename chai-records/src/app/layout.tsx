@@ -1,6 +1,6 @@
-// src/app/layout.tsx
 import './globals.css';
 import type { Metadata } from 'next';
+import { SessionProvider } from './_providers/sessionProvider';
 
 export const metadata: Metadata = {
   title: 'Chai Records',
@@ -10,7 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SessionProvider>{children}</SessionProvider>
+      </body>
     </html>
   );
 }

@@ -1,10 +1,17 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/app/utils/supabase/supabase';
+import { useSession } from '../_providers/sessionProvider';
+import router from 'next/router';
 
 export default function Login() {
+  const { user, loading } = useSession();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
+
+   useEffect(() => {
+    if (!loading && user) router.replace('/home');
+  }, [loading, user, router]);
 
   async function signIn() {
     setBusy(true);

@@ -1,36 +1,57 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { supabase } from '../utils/supabase/supabase';
+
 import { useRouter } from 'next/navigation';
+import { RequireAuth, useSession } from "../_providers/sessionProvider";
+import { supabase } from "../utils/supabase/supabase";
+import { useEffect } from "react";
 
 export default function Home() {
-  const [name, setName] = useState<string>('');
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const router = useRouter();
+  return (
+    <RequireAuth requireProfile>
+      <HomeContent />
+    </RequireAuth>
+  );
+}
 
-  useEffect(() => {
-    (async () => {
-      const response = await supabase.auth.getSession();
-      console.log("data",response)
-      // if (!session) return;
-      // const { data } = await supabase
-      //   .from('profiles').select('display_name, admin').eq('id', session.user.id).maybeSingle();
-      // if (data) { setName(data.display_name); setIsAdmin(!!data.admin); }
-    })();
-  }, []);
+function HomeContent() {
+  const { profile, signOut } = useSession();
+    const router = useRouter();
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace('/login');
-  }
+      function goToProfile() {
+        router.replace('/profile');
+      }
+
+  async function log() {const { data: { user } } = await supabase.auth.getUser();
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', user!.id)
+            .maybeSingle();
+          console.log("PROFILE", profile)}
+    
+        useEffect(() => {
+          log();
+        },[])
+
 
   return (
     <div className="mx-auto max-w-2xl p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Welcome, {name}</h1>
-        <button onClick={signOut} className="rounded border px-3 py-1">Sign out</button>
+        <h1 className="text-xl font-semibold">
+          Welcome, {profile?.display_name ?? 'New User'}
+        </h1>
+        <button onClick={goToProfile} className="rounded border px-3 py-1">
+          Go To Profile
+        </button>
+        <button onClick={signOut} className="rounded border px-3 py-1">
+          Sign out
+        </button>
       </div>
-      <p>{isAdmin ? 'You are an admin.' : 'Regular user.'}</p>
+      <p>{profile?.admin ? 'You are an admin.' : 'Regular user.'}</p>
     </div>
   );
 }
+
+      
+    
+      
