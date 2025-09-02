@@ -31,7 +31,7 @@ export default function ProfilePage() {
 
       if (error) setMessage(error.message);
 
-      if (!data) { // no profile yet → go create one
+      if (!data) { 
         router.replace('/create-profile');
         return;
       }
