@@ -10,7 +10,7 @@ export default function Login() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${location.origin}/` },
+      options: { emailRedirectTo: process.env.NEXT_REDIRECT_URL },
     });
     setBusy(false);
     if (error) alert(error.message);
