@@ -1,15 +1,24 @@
 // src/app/create-profile/page.tsx
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/utils/supabase/supabase';
-import { RequireAuth, useSession } from '../../providers/sessionProvider';
-import { Loader } from '../../customComponents/loader/loader';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/utils/supabase/supabase";
+import { RequireAuth, useSession } from "../../providers/sessionProvider";
+import { ChaiLoader } from "../../customComponents/loader/loader";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function CreateProfilePage() {
   // User must be signed in, but we do NOT require an existing profile here
@@ -84,42 +93,56 @@ function CreateProfileContent() {
     router.replace("/profile");
   }
 
-  if (!profileReady) return <Loader />;
+  if (!profileReady) return <ChaiLoader className="text-foreground/80"/>;
   if (profile) return null; // the redirect effect will run
 
   return (
     <div className="mx-auto max-w-md p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Create your profile</h1>
       {message && <div className="rounded border p-2 text-sm">{message}</div>}
+      <Card>
+        <CardHeader>
+          <CardTitle>Create Your Profile</CardTitle>
+          <CardDescription>
+            Choose a display name and avatar that others will see.
+          </CardDescription>
+          {/* <CardAction>Card Action</CardAction> */}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center">
+            <Avatar className="size-20">
+              <AvatarImage
+                src={
+                  previewAvatar ?? "https://via.placeholder.com/96?text=Avatar"
+                }
+              />
+              <AvatarFallback>CN</AvatarFallback>
+            </Avatar>
+          </div>
+          <div className="space-y-3">
+            <Label>Avatar (optional)</Label>
+            <Input
+              id="avatar"
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
 
-      <div className="flex items-center gap-4">
-        <Avatar>
-          <AvatarImage
-            src={previewAvatar ?? "https://via.placeholder.com/96?text=Avatar"}
-          />
-          {/* <AvatarFallback>CN</AvatarFallback> */}
-        </Avatar>
-        <div>
-          <Label>Avatar (optional)</Label>
-          <Input
-            id="avatar"
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
-      </div>
-
-      <Label>Display name</Label>
-      <Input
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder="e.g., Kyle"
-      />
-
-      <Button onClick={handleCreateProfile} disabled={saving}>
-        {saving ? "Saving…" : "Create profile"}
-      </Button>
+            <Label>Display name</Label>
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g., Kyle"
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          <div className="w-full flex justify-center">
+            <Button onClick={handleCreateProfile} disabled={saving}>
+              {saving ? "Saving…" : "Create profile"}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

@@ -3,14 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase/supabase';
-
-type Profile = {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  admin: boolean | null;
-  created_at: string | null;
-} | null;
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarImage, AvatarFallback } from '@radix-ui/react-avatar';
+import { Label } from '@radix-ui/react-label';
+import { Profile } from '@/types/profile';
+import { ChaiLoader } from '@/customComponents/loader/loader';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -20,19 +17,24 @@ export default function ProfilePage() {
 
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.replace('/login'); return; }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
 
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, display_name, avatar_url, admin, created_at')
-        .eq('id', session.user.id)
+        .from("profiles")
+        .select("id, display_name, avatar_url, admin, created_at")
+        .eq("id", session.user.id)
         .maybeSingle();
 
       if (error) setMessage(error.message);
 
-      if (!data) { 
-        router.replace('/create-profile');
+      if (!data) {
+        router.replace("/create-profile");
         return;
       }
 
@@ -41,36 +43,50 @@ export default function ProfilePage() {
     })();
   }, [router]);
 
-  if (loading) return <div className="p-6">Loading…</div>;
+  if (loading) return <ChaiLoader className="text-foreground/80"/>;
 
   return (
-    <div className="mx-auto max-w-xl p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Your profile</h1>
+    <div className="mx-auto max-w-md p-6 space-y-4">
       {message && <div className="rounded border p-2 text-sm">{message}</div>}
+      <Card>
+        <CardHeader>
+          <CardTitle>{profile?.display_name ?? "Unnamed User"}'s Profile</CardTitle>
+        </CardHeader>
 
-      <div className="flex items-center gap-4">
-        <img
-          src={profile?.avatar_url ?? 'https://via.placeholder.com/80?text=Avatar'}
-          alt="avatar"
-          className="h-20 w-20 rounded-full object-cover border"
-        />
-        <div className="text-lg font-medium">
-          {profile?.display_name ?? 'New User'}
-        </div>
-      </div>
+        <CardContent className="flex flex-col items-center gap-6">
+          <Avatar className="size-20 rounded-full overflow-hidden">
+            <AvatarImage
+              src={profile?.avatar_url ?? undefined}
+              className="h-full w-full object-cover"
+            />
+            <AvatarFallback className="rounded-full uppercase">
+              {profile?.display_name?.[0] ?? "?"}
+            </AvatarFallback>
+          </Avatar>
 
-      <div className="text-sm text-gray-600 space-y-1">
-        <div><span className="font-medium">Admin:</span> {profile?.admin ? 'Yes' : 'No'}</div>
-        {profile?.created_at && (
-          <div>
-            <span className="font-medium">Created:</span>{' '}
-            {new Date(profile.created_at).toLocaleString()}
+          <div className="grid gap-1 text-center">
+            <Label className="text-xs text-muted-foreground">
+              Display name
+            </Label>
+            <div className="text-lg font-medium">
+              {profile?.display_name ?? "New User"}
+            </div>
           </div>
-        )}
-      </div>
+        </CardContent>
 
-      {/* If you later want editing, link to a separate /profile/edit route */}
-      {/* <Link href="/profile/edit" className="underline">Edit profile</Link> */}
+        <CardFooter className="grid place-items-center gap-1 text-center">
+          <div>
+            <span className="font-medium">Admin:</span>{" "}
+            {profile?.admin ? "Yes" : "No"}
+          </div>
+          {profile?.created_at && (
+            <div>
+              <span className="font-medium">Created:</span>{" "}
+              {new Date(profile.created_at).toLocaleString()}
+            </div>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
 }
