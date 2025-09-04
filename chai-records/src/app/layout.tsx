@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { SessionProvider } from './_providers/sessionProvider';
+import { SessionProvider } from '../providers/sessionProvider';
 
 export const metadata: Metadata = {
   title: 'Chai Records',

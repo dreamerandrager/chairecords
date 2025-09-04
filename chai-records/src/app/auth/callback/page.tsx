@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/app/utils/supabase/supabase';
+
+import { supabase } from '@/utils/supabase/supabase';
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -20,7 +21,6 @@ export default function AuthCallback() {
         return;
       }
 
-      // (Optional) clean the URL to remove auth params
       try {
         window.history.replaceState({}, '', '/');
       } catch {}

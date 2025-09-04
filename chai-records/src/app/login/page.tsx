@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/app/utils/supabase/supabase';
-import { useSession } from '../_providers/sessionProvider';
+import { supabase } from '@/utils/supabase/supabase';
+import { useSession } from '../../providers/sessionProvider';
 import router from 'next/router';
 
 export default function Login() {

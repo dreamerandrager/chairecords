@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { RequireAuth, useSession } from "../_providers/sessionProvider";
-import { supabase } from "../utils/supabase/supabase";
+import { RequireAuth, useSession } from "../../providers/sessionProvider";
+import { supabase } from "../../utils/supabase/supabase";
 import { useEffect } from "react";
 
 export default function Home() {

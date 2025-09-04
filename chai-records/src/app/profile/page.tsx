@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/app/utils/supabase/supabase';
+import { supabase } from '@/utils/supabase/supabase';
 
 type Profile = {
   id: string;

@@ -1,33 +1,25 @@
-// src/app/_providers/session-provider.tsx
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/app/utils/supabase/supabase';
+
+import { supabase } from '@/utils/supabase/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
-type ProfileRow = {
-  id: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  admin: boolean | null;
-  created_at: string | null;
-};
+import { Profile } from '../types/profile';
 
-type Profile = ProfileRow | null; // null = loaded & missing; undefined = not loaded yet
-
-type SessionCtx = {
+type SessionContext = {
   session: Session | null;
   user: User | null;
   sessionReady: boolean;
   profile: Profile | undefined;
   profileReady: boolean;
-  loading: boolean; // true until sessionReady && (no user || profileReady)
+  loading: boolean; 
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
-const Ctx = createContext<SessionCtx | null>(null);
+const Context = createContext<SessionContext | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -107,7 +99,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const loading = !sessionReady || (!!session?.user && !profileReady);
 
-  const value = useMemo<SessionCtx>(() => ({
+  const value = useMemo<SessionContext>(() => ({
     session,
     user: session?.user ?? null,
     sessionReady,
@@ -118,16 +110,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     signOut,
   }), [session, sessionReady, profile, profileReady, loading]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function useSession() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useSession must be used within <SessionProvider>');
-  return ctx;
+  const context = useContext(Context);
+  if (!context) throw new Error('useSession must be used within <SessionProvider>');
+  return context;
 }
 
-/** Wrap protected pages with this guard. */
+// Wrap protected pages with this guard. 
 export function RequireAuth({
   children,
   requireProfile = false,
@@ -143,20 +135,19 @@ export function RequireAuth({
   const router = useRouter();
 
   useEffect(() => {
-    if (!sessionReady) return;                 // wait for session
-    if (!user) {                               // not signed in
+    if (!sessionReady) return;                
+    if (!user) {                               
       router.replace(redirectToLogin);
       return;
     }
     if (requireProfile) {
-      if (!profileReady) return;               // wait for profile
-      if (profile === null) {                  // loaded & missing
+      if (!profileReady) return;              
+      if (profile === null) {                
         router.replace(redirectToOnboarding);
       }
     }
   }, [sessionReady, profileReady, user, profile, redirectToLogin, redirectToOnboarding, router]);
 
-  // Hold render until we know what to do
   if (!sessionReady) return null;
   if (!user) return null;
   if (requireProfile && !profileReady) return null;
