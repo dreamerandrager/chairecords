@@ -1,32 +1,20 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { SessionProvider } from '../providers/sessionProvider';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/customComponents/sidebar/app-sidebar';
 import { ThemeProvider } from '@/providers/themeProvider';
+import { SessionProvider } from '@/providers/sessionProvider';
 
 export const metadata: Metadata = {
   title: 'Chai Records',
   description: 'Drink reviews with friends',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="bg-white text-neutral-900 dark:bg-neutral-900 dark:text-neutral-100">
         <ThemeProvider>
           <SessionProvider>
-            <SidebarProvider>
-              <AppSidebar />
-              <main>
-                <SidebarTrigger />
-                {children}
-              </main>
-            </SidebarProvider>
+            {children}
           </SessionProvider>
         </ThemeProvider>
       </body>

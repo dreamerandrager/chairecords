@@ -2,34 +2,33 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-
 import { supabase } from '@/utils/supabase/supabase';
+import { Loader } from '@/customComponents/loader/loader';
 
 export default function AuthCallback() {
   const router = useRouter();
-  const [msg, setMsg] = useState('Signing you in…');
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-
     (async () => {
+      // This parses the current URL (?code=...) and handles PKCE for you
       const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
-      if (!mounted) return;
 
       if (error) {
-        setMsg(`Sign-in failed: ${error.message}`);
+        setErr(error.message);
         return;
       }
-
-      try {
-        window.history.replaceState({}, '', '/');
-      } catch {}
-
+      // success → go to your authed landing page
       router.replace('/home');
     })();
-
-    return () => { mounted = false; };
   }, [router]);
 
-  return <div className="p-6">{msg}</div>;
+  return (
+    <div className="grid min-h-svh place-items-center">
+      <div className="text-center">
+        <Loader variant="inline" message="Signing you in…" />
+        {err && <p className="mt-3 text-sm text-red-500">{err}</p>}
+      </div>
+    </div>
+  );
 }

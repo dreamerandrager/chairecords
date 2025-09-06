@@ -30,7 +30,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const router = useRouter();
 
-  // Load session once, then subscribe to changes
+  // load session once, then subscribe to changes
   useEffect(() => {
     let mounted = true;
 
@@ -54,7 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Load profile whenever we have (or lose) a user
+  // load profile whenever we have (or lose) a user
   useEffect(() => {
     (async () => {
       if (!session?.user) {
@@ -119,39 +119,63 @@ export function useSession() {
   return context;
 }
 
-// Wrap protected pages with this guard. 
+// wrap protected pages with this guard in the relevant layout.tsx
 export function RequireAuth({
   children,
   requireProfile = false,
   redirectToLogin = '/login',
   redirectToOnboarding = '/create-profile',
+  fallback = null,                     
 }: {
   children: React.ReactNode;
   requireProfile?: boolean;
   redirectToLogin?: string;
   redirectToOnboarding?: string;
+  fallback?: React.ReactNode;          
 }) {
   const { user, profile, sessionReady, profileReady } = useSession();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!sessionReady) return;                
-    if (!user) {                               
+  
+useEffect(() => {
+  if (!sessionReady) return;
+
+  (async () => {
+    if (!user) {
+      router.replace(redirectToLogin);
+      return;
+    }
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data?.user) {
+      await supabase.auth.signOut();
       router.replace(redirectToLogin);
       return;
     }
     if (requireProfile) {
-      if (!profileReady) return;              
-      if (profile === null) {                
-        router.replace(redirectToOnboarding);
-      }
+      if (!profileReady) return;
+      if (profile === null) router.replace(redirectToOnboarding);
     }
-  }, [sessionReady, profileReady, user, profile, redirectToLogin, redirectToOnboarding, router]);
+  })();
+}, [
+  sessionReady,
+  user,
+  requireProfile,
+  profileReady,
+  profile,
+  router,
+  redirectToLogin,
+  redirectToOnboarding,
+]);
 
-  if (!sessionReady) return null;
-  if (!user) return null;
-  if (requireProfile && !profileReady) return null;
-  if (requireProfile && profile === null) return null;
+
+  const waiting =
+    !sessionReady ||
+    (!user) ||
+    (requireProfile && !profileReady);
+
+  if (waiting) return <>{fallback}</>;                 
+  if (requireProfile && profile === null) return null;  
 
   return <>{children}</>;
 }
+
