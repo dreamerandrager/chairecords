@@ -34,12 +34,14 @@ export default function Login() {
 
     setBusy(false);
     if (error) setErr(error.message);
-    else setMsg('Magic link sent. Check your email!');
+    else setMsg('Link sent. Check your email!');
   }
 
   return (
-    <div className="mx-auto max-w-sm p-6">
-      <h1 className="mb-4 text-xl font-semibold">Sign in</h1>
+  <div className="min-h-svh grid place-items-center px-4">
+    <div className="w-full max-w-sm p-6">
+      <h1 className="mb-4 text-3xl text-center font-semibold">Welcome to ChaiMe.</h1>
+      <h1 className="mb-4 text-xl text-center font-semibold">Sign in</h1>
 
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
@@ -54,20 +56,18 @@ export default function Login() {
         />
       </div>
 
-      <Button
-        className="mt-4 w-full"
-        disabled={busy || !email}
-        onClick={signIn}
-      >
-        {busy ? 'Sending…' : 'Send magic link'}
+      <Button className="mt-4 w-full" disabled={busy || !email} onClick={signIn}>
+        {busy ? 'Sending…' : 'Send link'}
       </Button>
 
-      {msg && <p className="mt-3 text-sm text-muted-foreground">{msg}</p>}
+      {msg && <p className="mt-3 text-sm text-center text-muted-foreground">{msg}</p>}
       {err && <p className="mt-3 text-sm text-red-500">{err}</p>}
 
-      <p className="mt-6 text-xs text-muted-foreground">
-        We’ll email you a sign-in link. Click on the link in your email to create an account with us or log into your existing account.
+      <p className="mt-6 text-xs text-muted-foreground text-center">
+        We’ll email you a sign-in link. Click the link to create an account or log in.
       </p>
     </div>
-  );
+  </div>
+);
+
 }

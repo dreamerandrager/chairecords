@@ -1,20 +1,20 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-import { supabase } from '@/utils/supabase/supabase';
 import type { Session, User } from '@supabase/supabase-js';
-
+import { supabase } from '@/utils/supabase/supabase';
 import { Profile } from '../types/profile';
+
 
 type SessionContext = {
   session: Session | null;
   user: User | null;
   sessionReady: boolean;
-  profile: Profile | undefined;
+  profile: Profile | null | undefined;
   profileReady: boolean;
-  loading: boolean; 
+  loading: boolean;           
+  lastError: string | null;   
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -22,72 +22,87 @@ type SessionContext = {
 const Context = createContext<SessionContext | null>(null);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+
   const [session, setSession] = useState<Session | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
 
-  const [profile, setProfile] = useState<Profile | undefined>(undefined);
+  const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [profileReady, setProfileReady] = useState(false);
 
-  const router = useRouter();
+  const [lastError, setLastError] = useState<string | null>(null);
 
-  // load session once, then subscribe to changes
+  // Load session once on mount, then subscribe to auth changes
   useEffect(() => {
-    let mounted = true;
-
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(data.session ?? null);
+      const s = data.session ?? null;
+      setSession(s);
       setSessionReady(true);
-    })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, newSession) => {
-      setSession(newSession ?? null);
-      // reset profile loading state when user changes
-      setProfile(undefined);
-      setProfileReady(false);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  // load profile whenever we have (or lose) a user
-  useEffect(() => {
-    (async () => {
-      if (!session?.user) {
+      if (s?.user) {
+        setProfile(undefined);
+        setProfileReady(false);
+        await refreshProfile(); 
+      } else {
         setProfile(null);
         setProfileReady(true);
+      }
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession ?? null);
+
+      switch (event) {
+        case 'SIGNED_OUT':
+          setProfile(null);
+          setProfileReady(true);
+          break;
+
+        case 'SIGNED_IN':
+        case 'USER_UPDATED':
+          setProfile(undefined); 
+          setProfileReady(false);
+          void refreshProfile();
+          break;
+
+        case 'TOKEN_REFRESHED':
+        case 'INITIAL_SESSION':
+        default:
+          break;
+      }
+    });
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const refreshProfile = async () => {
+    try {
+      setLastError(null);
+      const u = (await supabase.auth.getUser()).data?.user ?? session?.user;
+      if (!u?.id) {
+        setProfile(null);
         return;
       }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('id, display_name, avatar_url, admin, created_at')
-        .eq('id', session.user.id)
+        .eq('id', u.id)
         .maybeSingle();
 
-      setProfile(error ? null : (data ?? null));
-      setProfileReady(true);
-    })();
-  }, [session?.user?.id]);
-
-  const refreshProfile = async () => {
-    const user = session?.user;
-    if (!user) {
+      if (error) {
+        setLastError(error.message);
+        setProfile(null);
+      } else {
+        setProfile(data ?? null);
+      }
+    } catch (e: any) {
+      setLastError(e?.message ?? 'Unknown profile error');
       setProfile(null);
+    } finally {
       setProfileReady(true);
-      return;
     }
-    setProfileReady(false);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, display_name, avatar_url, admin, created_at')
-      .eq('id', user.id)
-      .maybeSingle();
-    setProfile(error ? null : (data ?? null));
-    setProfileReady(true);
   };
 
   const signOut = async () => {
@@ -106,76 +121,82 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     profile,
     profileReady,
     loading,
+    lastError,
     refreshProfile,
     signOut,
-  }), [session, sessionReady, profile, profileReady, loading]);
+  }), [session, sessionReady, profile, profileReady, loading, lastError]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
 export function useSession() {
-  const context = useContext(Context);
-  if (!context) throw new Error('useSession must be used within <SessionProvider>');
-  return context;
+  const ctx = useContext(Context);
+  if (!ctx) throw new Error('useSession must be used within <SessionProvider>');
+  return ctx;
 }
 
-// wrap protected pages with this guard in the relevant layout.tsx
 export function RequireAuth({
   children,
   requireProfile = false,
   redirectToLogin = '/login',
   redirectToOnboarding = '/create-profile',
-  fallback = null,                     
+  fallback = null,
+  showDebug = process.env.NODE_ENV !== 'production',
 }: {
   children: React.ReactNode;
   requireProfile?: boolean;
   redirectToLogin?: string;
   redirectToOnboarding?: string;
-  fallback?: React.ReactNode;          
+  fallback?: React.ReactNode;
+  showDebug?: boolean; 
 }) {
-  const { user, profile, sessionReady, profileReady } = useSession();
+  const { user, profile, sessionReady, profileReady, lastError } = useSession();
   const router = useRouter();
 
-  
-useEffect(() => {
-  if (!sessionReady) return;
+  const decidedRef = useRef(false);
+  const [allowed, setAllowed] = useState(false);
+  const [reason, setReason] = useState<string>('initializing');
 
-  (async () => {
+  useEffect(() => {
+    if (decidedRef.current) return;
+
+    const ready = sessionReady && (!requireProfile || profileReady);
+    if (!ready) {
+      setReason(!sessionReady ? 'waiting:session' : 'waiting:profile');
+      return;
+    }
+
+    decidedRef.current = true;
+
     if (!user) {
+      setReason('redirect:login (no user)');
       router.replace(redirectToLogin);
       return;
     }
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data?.user) {
-      await supabase.auth.signOut();
-      router.replace(redirectToLogin);
+
+    if (requireProfile && profile === null) {
+      setReason('redirect:onboarding (no profile)');
+      router.replace(redirectToOnboarding);
       return;
     }
-    if (requireProfile) {
-      if (!profileReady) return;
-      if (profile === null) router.replace(redirectToOnboarding);
-    }
-  })();
-}, [
-  sessionReady,
-  user,
-  requireProfile,
-  profileReady,
-  profile,
-  router,
-  redirectToLogin,
-  redirectToOnboarding,
-]);
 
+    setReason('allowed');
+    setAllowed(true);
+  }, [sessionReady, profileReady, requireProfile, user, profile, router, redirectToLogin, redirectToOnboarding]);
 
-  const waiting =
-    !sessionReady ||
-    (!user) ||
-    (requireProfile && !profileReady);
-
-  if (waiting) return <>{fallback}</>;                 
-  if (requireProfile && profile === null) return null;  
+  if (!decidedRef.current || !allowed) {
+    return (
+      <>
+        {fallback}
+        {showDebug && (
+          <div className="mt-2 text-center text-xs text-muted-foreground">
+            guard: <code>{reason}</code>
+            {lastError ? <> • error: <code>{lastError}</code></> : null}
+          </div>
+        )}
+      </>
+    );
+  }
 
   return <>{children}</>;
 }
-

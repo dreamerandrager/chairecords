@@ -5,15 +5,18 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/customComponents/sidebar/app-sidebar';
 import { Loader } from '@/customComponents/loader/loader';
 
-export default function WithProfileLayout({ children }: { children: React.ReactNode }) {
+export default function WithProfileLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex min-h-svh">
-      <SidebarProvider>
-        <AppSidebar />
-        <main className="flex-1">
-          <div className="p-2 md:hidden">
-            <SidebarTrigger />
-          </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <main className="relative flex-1">
+        <SidebarTrigger className="absolute top-2 left-2 z-20" />
+
+        <div className="min-h-svh grid place-items-center px-4">
           <RequireAuth
             requireProfile
             fallback={
@@ -24,8 +27,8 @@ export default function WithProfileLayout({ children }: { children: React.ReactN
           >
             {children}
           </RequireAuth>
-        </main>
-      </SidebarProvider>
-    </div>
+        </div>
+      </main>
+    </SidebarProvider>
   );
 }

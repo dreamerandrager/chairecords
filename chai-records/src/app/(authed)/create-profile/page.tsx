@@ -59,7 +59,7 @@ export default function CreateProfilePage() {
   }
 
   return (
-    <div className="mx-auto max-w-md p-6 space-y-4">
+    <div className="min-h-svh grid place-items-center px-4">
       {message && <div className="rounded border p-2 text-sm">{message}</div>}
       <Card>
         <CardHeader>

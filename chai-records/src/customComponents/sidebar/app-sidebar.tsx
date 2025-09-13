@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSession } from "@/providers/sessionProvider";
 import { useThemeUtils } from "@/utils/theme/useThemeUtils";
-import { Home, User, LogOut, Moon, Sun } from "lucide-react";
+import { Home, User, Users, LogOut, Moon, Sun } from "lucide-react";
 
 import {
   Sidebar,
@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 type LinkItem = { title: string; href: string; icon: React.ComponentType<any> };
@@ -29,16 +30,17 @@ export function AppSidebar({
 }: {
   requireProfile?: boolean;
 }) {
-  const { user, profile, sessionReady, profileReady, signOut } = useSession();
+  const { user, profile, sessionReady, signOut } = useSession();
   const { isDark, toggleTheme, mounted } = useThemeUtils();
+  const { isMobile, setOpenMobile } = useSidebar();
 
-  // Hide until authed (and profile if required)
   if (!sessionReady || !user) return null;
   if (requireProfile && (profile === null)) return null;
 
   const items: Item[] = [
     { title: "Home", href: "/home", icon: Home },
     { title: "Profile", href: "/profile", icon: User },
+    { title: 'Find Friends', href: '/users', icon: Users }, 
     {
       title: isDark ? "Light mode" : "Dark mode",
       onClick: toggleTheme,
@@ -46,6 +48,10 @@ export function AppSidebar({
     },
     { title: "Sign out", onClick: () => void signOut(), icon: LogOut },
   ];
+
+  const closeIfMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   return (
     <Sidebar>
@@ -58,7 +64,10 @@ export function AppSidebar({
                 <SidebarMenuItem key={item.title}>
                   {"href" in item ? (
                     <SidebarMenuButton asChild>
-                      <Link href={item.href}>
+                       <Link
+                        href={item.href}
+                        onClick={closeIfMobile}
+                      >
                         <item.icon className="size-4" />
                         <span>{item.title}</span>
                       </Link>
