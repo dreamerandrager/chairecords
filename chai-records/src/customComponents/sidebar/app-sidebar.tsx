@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSession } from "@/providers/sessionProvider";
 import { useThemeUtils } from "@/utils/theme/useThemeUtils";
-import { Home, User, Users, LogOut, Moon, Sun } from "lucide-react";
+import { Home, User, Users, LogOut, Moon, Sun, LucideIcon } from "lucide-react";
 
 import {
   Sidebar,
@@ -17,11 +17,11 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-type LinkItem = { title: string; href: string; icon: React.ComponentType<any> };
+type LinkItem = { title: string; href: string; icon: LucideIcon };
 type ActionItem = {
   title: string;
   onClick: () => void;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon ;
 };
 type Item = LinkItem | ActionItem;
 

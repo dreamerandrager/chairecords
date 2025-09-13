@@ -32,6 +32,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const [lastError, setLastError] = useState<string | null>(null);
 
+  function getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'Unknown error';
+    }
+  }
+
   // Load session once on mount, then subscribe to auth changes
   useEffect(() => {
     (async () => {
@@ -97,8 +107,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       } else {
         setProfile(data ?? null);
       }
-    } catch (e: any) {
-      setLastError(e?.message ?? 'Unknown profile error');
+    } catch (e: unknown) {
+      setLastError(getErrorMessage(e));
       setProfile(null);
     } finally {
       setProfileReady(true);
