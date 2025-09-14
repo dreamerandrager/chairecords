@@ -66,7 +66,7 @@ export default function Login() {
       {err && <p className="mt-3 text-sm text-red-500">{err}</p>}
 
       <p className="mt-6 text-xs text-muted-foreground text-center">
-        You'll receive an email from Supabase. Click this link to create an account or log in.
+        You&apos;ll receive an email from Supabase. Click this link to create an account or log in.
       </p>
     </div>
   </div>
