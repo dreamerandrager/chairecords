@@ -29,7 +29,7 @@ export default function Login() {
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: process.env.NEXT_REDIRECT_URL },
+      options: { emailRedirectTo: process.env.NEXT_PUBLIC_REDIRECT_URL },
     });
 
     setBusy(false);
