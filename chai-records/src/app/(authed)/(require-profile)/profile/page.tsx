@@ -11,7 +11,7 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-md p-6 space-y-4">
       <UserProfileCard
-        displayName={profile.display_name?.[0]}
+        displayName={profile.display_name}
         avatarUrl={profile.avatar_url}
         admin={profile.admin ? true : false}
         createdAt={profile.created_at}

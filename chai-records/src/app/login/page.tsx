@@ -27,9 +27,11 @@ export default function Login() {
     setMsg(null);
     setErr(null);
 
+    const redirectTo = `${window.location.origin}/auth/callback`;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: process.env.NEXT_PUBLIC_REDIRECT_URL },
+      options: { emailRedirectTo: redirectTo},
     });
 
     setBusy(false);
@@ -40,7 +42,7 @@ export default function Login() {
   return (
   <div className="min-h-svh grid place-items-center px-4">
     <div className="w-full max-w-sm p-6">
-      <h1 className="mb-4 text-3xl text-center font-semibold">Welcome to ChaiMe.</h1>
+      <h1 className="mb-4 text-3xl text-center font-semibold">Chai Records</h1>
       <h1 className="mb-4 text-xl text-center font-semibold">Sign in</h1>
 
       <div className="grid gap-2">
@@ -64,7 +66,7 @@ export default function Login() {
       {err && <p className="mt-3 text-sm text-red-500">{err}</p>}
 
       <p className="mt-6 text-xs text-muted-foreground text-center">
-        We’ll email you a sign-in link. Click the link to create an account or log in.
+        You'll receive an email from Supabase. Click this link to create an account or log in.
       </p>
     </div>
   </div>
