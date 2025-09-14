@@ -27,7 +27,7 @@ export default function CreateProfilePage() {
 
   useEffect(() => {
     if (!profileReady) return;      
-    if (profile) router.replace('/profile');
+    if (profile) router.replace('/home');
   }, [profileReady, profile, router]);
 
   async function handleCreateProfile() {

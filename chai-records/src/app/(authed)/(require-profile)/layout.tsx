@@ -100,8 +100,8 @@ export default function WithProfileLayout({
                             sm:h-10 sm:aspect-auto sm:px-4 sm:gap-2"
                   onClick={() => router.push('/create-review')}
                 >
-                  <Plus className="size-8" />
-                  <span className="hidden sm:inline">Create Review</span>
+                  <Plus className="size-6" />
+                  <span className="inline text-lg sm:text-sm">Add Review</span>
                 </Button>
               </div>
             </RequireAuth>
