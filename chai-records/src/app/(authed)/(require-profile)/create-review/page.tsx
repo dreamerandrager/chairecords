@@ -1,4 +1,3 @@
-// app/create-review/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -6,26 +5,28 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from "@/utils/supabase/supabase";
+import { supabase } from '@/utils/supabase/supabase';
+import { Textarea } from '@/components/ui/textarea';
 
-// --- adjust bucket name if you use a different one ---
-const STORAGE_BUCKET = 'item-images'; // create a public bucket named "item-images"
+const STORAGE_BUCKET = 'item-images';
 
-type Restaurant = { id: string; name: string };
-type Item = { id: string; name: string; restaurant_id: string };
+type Brand = { id: string; name: string; slug: string };
+type Restaurant = { id: string; name: string; brand_id: string | null };
+type BrandItem = { name: string; category: 'FOOD' | 'BEVERAGE'; sample_item_id?: string };
 
 export default function CreateReviewPage() {
   const router = useRouter();
 
-  // form state
+  // ---------- state ----------
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [brandId, setBrandId] = useState<string>('');
+
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantId, setRestaurantId] = useState<string>('');
 
-  const [useExistingItem, setUseExistingItem] = useState(true);
-  const [items, setItems] = useState<Item[]>([]);
-  const [itemId, setItemId] = useState<string>('');
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState(''); // must match your USER-DEFINED type value
+  const [itemQuery, setItemQuery] = useState('');
+  const [brandItemSuggestions, setBrandItemSuggestions] = useState<BrandItem[]>([]);
+  const [chosenBrandItem, setChosenBrandItem] = useState<BrandItem | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadedUrl, setUploadedUrl] = useState<string>('');
@@ -34,69 +35,138 @@ export default function CreateReviewPage() {
   const [body, setBody] = useState<string>('');
 
   const [loading, setLoading] = useState(false);
-  const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(false);
+  const [loadingBrandItems, setLoadingBrandItems] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // load restaurants (simple: first 100)
+  // ---------- load brands ----------
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
-        .from('restaurants')
-        .select('id, name')
+        .from('brands')
+        .select('id, name, slug')
         .order('name', { ascending: true })
-        .limit(100);
-      if (!error && data) setRestaurants(data as Restaurant[]);
+        .limit(200);
+      if (!error && data) setBrands(data as Brand[]);
     })();
   }, []);
 
-  // load items when restaurant changes (existing-item mode)
+  // ---------- load restaurants for brand ----------
   useEffect(() => {
-    if (!restaurantId || !useExistingItem) return;
-    setLoadingItems(true);
+    if (!brandId) {
+      setRestaurants([]);
+      setRestaurantId('');
+      return;
+    }
+    setLoadingRestaurants(true);
     (async () => {
       const { data, error } = await supabase
-        .from('items')
-        .select('id, name, restaurant_id')
-        .eq('restaurant_id', restaurantId)
-        .order('name', { ascending: true })
-        .limit(200);
-      if (!error && data) setItems(data as Item[]);
-      setLoadingItems(false);
+        .from('restaurants')
+        .select('id, name, brand_id')
+        .eq('brand_id', brandId)
+        .order('name', { ascending: true });
+      if (!error && data) setRestaurants(data as Restaurant[]);
+      setRestaurantId('');
+      setLoadingRestaurants(false);
     })();
-  }, [restaurantId, useExistingItem]);
+  }, [brandId]);
 
-  // simple guard
+  // ---------- search brand items (suggestions) ----------
+  useEffect(() => {
+    if (!brandId) {
+      setBrandItemSuggestions([]);
+      return;
+    }
+    // Only hit the DB for 2+ chars
+    if (!itemQuery || itemQuery.trim().length < 2) {
+      setBrandItemSuggestions([]);
+      return;
+    }
+    let isCancelled = false;
+    setLoadingBrandItems(true);
+
+    (async () => {
+      // Prefer brand-dedup view if you created it; otherwise fall back to v_items_with_brand
+      const { data, error } =
+        await supabase
+          .from('v_brand_items')               // columns: brand_id, brand_slug, name, slug, category, sample_item_id, updated_at
+          .select('name, category, sample_item_id')
+          .eq('brand_id', brandId)
+          .ilike('name', `%${itemQuery}%`)
+          .order('name', { ascending: true })
+          .limit(20);
+
+      if (!isCancelled) {
+        if (!error && data) {
+          setBrandItemSuggestions(
+            data.map((d) => ({
+              name: d.name,
+              category: d.category,
+              sample_item_id: d.sample_item_id,
+            })) as BrandItem[],
+          );
+        }
+        setLoadingBrandItems(false);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [brandId, itemQuery]);
+
   const canSubmit = useMemo(() => {
-    if (!restaurantId) return false;
-    if (useExistingItem && !itemId) return false;
-    if (!useExistingItem && !newItemName) return false;
-    if (!file && !uploadedUrl) return false; // must have either an uploaded file or a pasted URL
+    if (!brandId || !restaurantId) return false;
+    if (!chosenBrandItem && itemQuery.trim().length < 2) return false;
+    if (!file && !uploadedUrl) return false;
     if (!rating || rating < 1 || rating > 5) return false;
     return !loading;
-  }, [restaurantId, useExistingItem, itemId, newItemName, file, uploadedUrl, rating, loading]);
+  }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
 
-  // Upload file to Supabase Storage (returns public URL)
+  // ---------- helpers ----------
   async function uploadImageOrGetUrl(itemIdForPath: string) {
-    // If user already pasted a URL (advanced), just use it
     if (uploadedUrl) return uploadedUrl;
     if (!file) throw new Error('Please choose an image.');
 
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `reviews/${itemIdForPath}/${Date.now()}.${ext}`;
 
     const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
       cacheControl: '3600',
       upsert: false,
     });
-    if (upErr) {
-               console.log("here we failed upload image")
-        throw upErr
-    };
+    if (upErr) throw upErr;
 
     const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
     return pub.publicUrl;
   }
 
+  /**
+   * Resolve or create an item for the selected restaurant:
+   * 1) exact ILIKE in the restaurant
+   * 2) else copy category from best brand candidate (ILIKE on brand)
+   * 3) else insert with fallback category = 'FOOD'
+   */
+  async function resolveOrCreateItemForRestaurant(): Promise<{ id: string }> {
+  const desiredName = (chosenBrandItem?.name || itemQuery).trim();
+
+  const { data, error } = await supabase.rpc('resolve_or_create_item', {
+    p_brand_id: brandId,                          // uuid (brand selected)
+    p_restaurant_id: restaurantId,                // uuid (restaurant selected)
+    p_item_name: desiredName,                     // string
+    p_category: (chosenBrandItem?.category ?? null) as
+      | 'FOOD'
+      | 'BEVERAGE'
+      | null,                                     // optional hint; null lets SQL infer
+  });
+
+  if (error) throw error;
+  if (!data) throw new Error('Item could not be resolved/created.');
+  return { id: String(data) };                    // function returns the new/existing item uuid
+}
+
+
+  // ---------- submit ----------
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
@@ -104,34 +174,16 @@ export default function CreateReviewPage() {
     setLoading(true);
     setError(null);
     try {
-      // get current user/profile
+      // auth
       const { data: auth } = await supabase.auth.getUser();
       const profileId = auth.user?.id;
       if (!profileId) throw new Error('Not signed in.');
 
-      // resolve or create item
-      let finalItemId = itemId;
-      if (!useExistingItem) {
-        const { data: created, error: itemErr } = await supabase
-          .from('items')
-          .insert({
-            restaurant_id: restaurantId,
-            name: newItemName.trim(),
-            category: newItemCategory || null, // must match your domain type e.g. 'Drink'
-          })
-          .select('id')
-          .single();
-        if (itemErr) {
-            console.log("here we failed (resolve or create item");
-            throw itemErr
-        };
-        finalItemId = created!.id as string;
-      }
-      
+      // resolve/create item for this restaurant
+      const { id: finalItemId } = await resolveOrCreateItemForRestaurant();
 
-      // upload image first (path uses item id)
+      // upload image first
       const imageUrl = await uploadImageOrGetUrl(finalItemId);
-
 
       // create review
       const { data: review, error: revErr } = await supabase
@@ -144,39 +196,35 @@ export default function CreateReviewPage() {
         })
         .select('id')
         .single();
-      if (revErr) {
-        console.log("here we failed create revioew");
-        throw revErr;
-      };
-      
+      if (revErr) throw revErr;
 
-      // attach image to item, with provenance
+      // attach image to item with provenance
       const { error: imgErr } = await supabase.from('item_images').insert({
         item_id: finalItemId,
         url: imageUrl,
-        alt_text: null,
         sort_order: 0,
         is_primary: false,
         source_review_id: review!.id,
       });
-      if (imgErr) { console.log("here we failed attach image to item");
-        throw imgErr}
-      ;
+      if (imgErr) throw imgErr;
 
-      // done — route wherever makes sense
       router.push(`/reviews/${profileId}`);
     } catch (err: unknown) {
       console.error(err);
-    //   setError(err?.message ?? 'Something went wrong.');
+      // setError(err?.message ?? 'Something went wrong.');
     } finally {
       setLoading(false);
     }
   }
 
+  // ---------- UI ----------
   return (
     <div className="mx-auto w-full max-w-2xl p-4 space-y-6">
-      <h1 className="text-xl font-semibold">Create Review</h1>
-      <label className="flex items-center gap-2 text-center">Please note that for now you can only review an existing item.</label>
+      {/* <h1 className="text-xl font-semibold">Create Review</h1> */}
+      <p className="text-sm opacity-80">
+        Start by choosing a <strong>Brand</strong>, then a <strong>Restaurant</strong>. Search the brand’s menu;
+        if we can’t find your item, we’ll create it for that restaurant.
+      </p>
 
       {error && (
         <div className="rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -185,7 +233,31 @@ export default function CreateReviewPage() {
       )}
 
       <form onSubmit={onSubmit} className="space-y-6">
-        {/* Restaurant */}
+        {/* Brand */}
+        <div className="space-y-2">
+          <Label htmlFor="brand">Brand</Label>
+          <select
+            id="brand"
+            className="w-full rounded-md border p-2 dark:bg-gray-800"
+            value={brandId}
+            onChange={(e) => {
+              setBrandId(e.target.value);
+              setRestaurantId('');
+              setItemQuery('');
+              setChosenBrandItem(null);
+              setBrandItemSuggestions([]);
+            }}
+          >
+            <option value="">Select a brand…</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Restaurant (filtered by brand) */}
         <div className="space-y-2">
           <Label htmlFor="restaurant">Restaurant</Label>
           <select
@@ -194,11 +266,13 @@ export default function CreateReviewPage() {
             value={restaurantId}
             onChange={(e) => {
               setRestaurantId(e.target.value);
-              setItemId('');
-              setItems([]);
+              setChosenBrandItem(null);
             }}
+            disabled={!brandId || loadingRestaurants}
           >
-            <option value="">Select a restaurant…</option>
+            <option value="">
+              {loadingRestaurants ? 'Loading…' : 'Select a restaurant…'}
+            </option>
             {restaurants.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.name}
@@ -207,70 +281,39 @@ export default function CreateReviewPage() {
           </select>
         </div>
 
-        {/* Item choice */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-4 text-sm">
-            
-            {/* <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={useExistingItem}
-                onChange={() => setUseExistingItem(true)}
-                disabled={!restaurantId}
-              />
-              Existing item
-            </label> */}
-            {/* <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={!useExistingItem}
-                onChange={() => setUseExistingItem(false)}
-                disabled={!restaurantId}
-              />
-              Create new item
-            </label> */}
-          </div>
-
-          {useExistingItem ? (
-            <div className="space-y-2">
-              <Label htmlFor="item">Item</Label>
-              <select
-                id="item"
-                className="w-full rounded-md border p-2 dark:bg-gray-800"
-                value={itemId}
-                onChange={(e) => setItemId(e.target.value)}
-                disabled={!restaurantId || loadingItems}
-              >
-                <option value="">{loadingItems ? 'Loading items…' : 'Select an item…'}</option>
-                {items.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
+        {/* Item search within brand */}
+        <div className="space-y-2">
+          <Label htmlFor="itemSearch">Item (brand-wide search)</Label>
+          <Input
+            id="itemSearch"
+            placeholder="e.g. Zinger Burger"
+            value={chosenBrandItem ? chosenBrandItem.name : itemQuery}
+            onChange={(e) => {
+              setChosenBrandItem(null);
+              setItemQuery(e.target.value);
+            }}
+            disabled={!brandId}
+          />
+          {brandId && itemQuery.trim().length >= 2 && (
+            <div className="rounded-md border p-2 text-sm dark:bg-gray-800">
+              {loadingBrandItems && <div>Searching…</div>}
+              {!loadingBrandItems && brandItemSuggestions.length === 0 && (
+                <div>No brand matches. You can still create it.</div>
+              )}
+              {!loadingBrandItems &&
+                brandItemSuggestions.map((s, idx) => (
+                  <button
+                    type="button"
+                    key={`${s.name}-${idx}`}
+                    className="block w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded"
+                    onClick={() => {
+                      setChosenBrandItem(s);
+                      setItemQuery(s.name);
+                    }}
+                  >
+                    {s.name} <span className="opacity-60">({s.category})</span>
+                  </button>
                 ))}
-              </select>
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="new-name">New item name</Label>
-                <Input
-                  id="new-name"
-                  placeholder="e.g. Iced Latte"
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                  disabled={!restaurantId}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-cat">Category</Label>
-                <Input
-                  id="new-cat"
-                  placeholder="e.g. Drink"
-                  value={newItemCategory}
-                  onChange={(e) => setNewItemCategory(e.target.value)}
-                  disabled={!restaurantId}
-                />
-              </div>
             </div>
           )}
         </div>
@@ -278,13 +321,11 @@ export default function CreateReviewPage() {
         {/* Image */}
         <div className="space-y-2">
           <Label>Image</Label>
-          <div className="flex flex-col gap-2">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-          </div>
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
         </div>
 
         {/* Rating + Body */}
@@ -301,14 +342,16 @@ export default function CreateReviewPage() {
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-            <Input
-              id="body"
-              
-              placeholder="What did you think?"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-            />
-          </div>
+          <Label htmlFor="body">Review</Label>
+          <Textarea
+            id="body"
+            placeholder="What did you think?"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={8}
+            spellCheck
+          />
+        </div>
         </div>
 
         <Button type="submit" disabled={!canSubmit}>

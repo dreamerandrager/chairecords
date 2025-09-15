@@ -5,7 +5,7 @@ import { SessionProvider } from '@/providers/sessionProvider';
 
 export const metadata: Metadata = {
   title: 'Chai Records',
-  description: 'Drink reviews with friends',
+  description: 'Review food and drink items and discover new ones!',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

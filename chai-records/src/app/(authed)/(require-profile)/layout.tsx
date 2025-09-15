@@ -32,6 +32,11 @@ export default function WithProfileLayout({
     .join(' ') || 'Home';
 }, [pathname]);
 
+const isCreateReview = useMemo(() => {
+  const p = (pathname ?? '').split('?')[0].replace(/\/+$/,'');
+  return p === '/create-review';
+}, [pathname]);
+
 
   // Measure header height and set CSS var on <main>
   useLayoutEffect(() => {
@@ -93,17 +98,19 @@ export default function WithProfileLayout({
               {children}
 
               {/* Floating + Create Review button */}
-              <div className="fixed bottom-8 right-8 z-50">
-                <Button
-                  aria-label="Create Review"
-                  className="inline-flex items-center justify-center rounded-full shadow-lg h-14 aspect-square p-0
-                            sm:h-10 sm:aspect-auto sm:px-4 sm:gap-2"
-                  onClick={() => router.push('/create-review')}
-                >
-                  <Plus className="size-6" />
-                  <span className="inline text-lg sm:text-sm">Add Review</span>
-                </Button>
-              </div>
+              {!isCreateReview && (
+                <div className="fixed bottom-8 right-8 z-50">
+                  <Button
+                    aria-label="Create Review"
+                    className="inline-flex items-center justify-center rounded-full shadow-lg h-14 aspect-square p-0
+                              sm:h-10 sm:aspect-auto sm:px-4 sm:gap-2"
+                    onClick={() => router.push('/create-review')}
+                  >
+                    <Plus className="size-6" />
+                    <span className="inline text-lg sm:text-sm">Add Review</span>
+                  </Button>
+                </div>
+              )}
             </RequireAuth>
           </div>
         </div>
