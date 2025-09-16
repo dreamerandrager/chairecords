@@ -53,34 +53,37 @@ export function AppSidebar({
     if (isMobile) setOpenMobile(false);
   };
 
+  const menuButtonMobileClasses =
+    "h-12 gap-3 text-base [&>svg]:size-5 md:h-10 md:gap-2 md:text-sm md:[&>svg]:size-4";
+
   return (
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
+          <SidebarGroupContent className="text-base md:text-sm">
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {"href" in item ? (
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild className={menuButtonMobileClasses}>
                        <Link
                         href={item.href}
                         onClick={closeIfMobile}
                       >
-                        <item.icon className="size-4" />
+                        <item.icon className="size-5 md:size-4" />
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   ) : (
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild className={menuButtonMobileClasses}>
                       <button
                         type="button"
                         onClick={item.onClick}
                         className="w-full text-left"
                         disabled={!mounted}
                       >
-                        <item.icon className="size-4" />
+                        <item.icon className="size-5 md:size-4" />
                         <span>{item.title}</span>
                       </button>
                     </SidebarMenuButton>
