@@ -1,0 +1,22 @@
+export type Restaurant = {
+  id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  websiteUrl: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  countryCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  brandId: string | null;
+  brandName: string | null;
+};
