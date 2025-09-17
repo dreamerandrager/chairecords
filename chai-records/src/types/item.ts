@@ -14,4 +14,16 @@ export type Item = {
   imageUrl: string | null;
   createdAt: string;
   updatedAt: string;
+  consensusFacets?: ItemFacetSummary | null;
+};
+
+export type ItemFacetSummary = {
+  singleFacet: {
+    name: string;
+    value: string;
+  } | null;
+  multiFacets: {
+    name: string;
+    values: string[];
+  }[];
 };

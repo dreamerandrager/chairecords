@@ -56,6 +56,7 @@ export function ReviewsSection({
                 <ReviewCard
                   key={r.id}
                   id={r.id}
+                  itemId={r.itemId} // Required for item CTA in ReviewModal.
                   profileId={r.profileId}
                   itemName={r.itemName}
                   restaurantName={r.restaurantName}

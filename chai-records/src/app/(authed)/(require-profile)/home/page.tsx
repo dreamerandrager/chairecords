@@ -18,11 +18,13 @@ export default function Home() {
       {/* App summary */}
       <section className="mb-6 rounded-lg border bg-muted/30 p-4">
         <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold">
-          <Sparkles className="size-5" /> What is &apos;Chai Records&apos;?
+          <Sparkles className="size-5" /> What&apos;s new in 1.1.1?
         </h2>
         <p className="text-sm text-muted-foreground">
-          A simple place to review and eventually explore drinks & dishes across restaurants. Capture a photo,
-          rating, and notes that will affect an item&apos;s rating and what other users see about it to guide them in who has the most loved menu and what they offer.
+          Chai Records now gives every menu item and reviewer their own spotlight. Pop open a review and jump
+          straight to a dedicated item page with photo, pricing, and community-loved facets, or visit a friend&apos;s
+          profile to see who&apos;s behind the latest recommendations. It&apos;s the same simple way to capture great
+          dishes, now with richer ways to explore them.
         </p>
       </section>
 
@@ -37,11 +39,11 @@ export default function Home() {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4" />
-              See your profile and browse other users&apos; profiles.
+              Jump from any review to see the full item details and who shared it.
             </li>
-             <li className="flex items-start gap-2">
+            <li className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4" />
-              View users&apos; reviews from the Find Friends page.
+              Browse a friend&apos;s public profile without leaving your own flow.
             </li>
           </ul>
         </section>
@@ -51,10 +53,10 @@ export default function Home() {
             <Clock className="size-4" /> What&apos;s next
           </h3>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>Restaurant profile: view items, reviews across items, get directions.</li>
-            <li>View items: details, photos, reviews, recommended restaurants.</li>
-            <li>Friends: connect with friends to explore their profiles and reviews.</li>
-            <li>Favourites/Pin: a tab for favourited items and restaurants that others can see.</li>
+            <li>Restaurant profile: richer menus, reviews across items, directions, and more.</li>
+            <li>Item insights: deeper review history, galleries, and comparisons between restaurants.</li>
+            <li>Friends: connect with friends to explore their profiles and reviews in one feed.</li>
+            <li>Favourites/Pin: a shared list of go-to items and restaurants other members can follow.</li>
           </ul>
         </section>
       </div>

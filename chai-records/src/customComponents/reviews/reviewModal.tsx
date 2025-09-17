@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/utils/supabase/supabase';
@@ -13,10 +13,11 @@ type Profile = { display_name: string; avatar_url: string | null };
 type Props = {
   onClose: () => void;
   id: string;
+  itemId: string;
   profileId: string;
   itemName: string;
   restaurantName: string;
-  restaurantId: string;  
+  restaurantId: string;
   rating: number;
   body: string | null;
   photoUrl: string | null;
@@ -34,7 +35,7 @@ function Stars({ value }: { value: number }) {
 }
 
 export function ReviewModal(props: Props) {
-  const { onClose, profileId, itemName, restaurantName, restaurantId, rating, body, photoUrl, createdAt } = props;
+  const { onClose, itemId, profileId, itemName, restaurantName, restaurantId, rating, body, photoUrl, createdAt } = props;
   const [profile, setProfile] = useState<Profile | null>(null);
   const router = useRouter();
   useEffect(() => {
@@ -54,9 +55,22 @@ export function ReviewModal(props: Props) {
     if (e.target === e.currentTarget) onClose();
   }
 
+  const handleGoToItem = () => {
+    if (!itemId) return;
+    router.push(`/items/${itemId}`);
+    onClose();
+  };
+
   const handleGoToRestaurant = () => {
     if (!restaurantId) return;
     router.push(`/restaurants/${restaurantId}`);
+    onClose();
+  };
+
+  const handleGoToReviewer = () => {
+    if (!profileId) return;
+    router.push(`/viewprofile/${profileId}`);
+    onClose();
   };
 
   return (
@@ -143,43 +157,46 @@ export function ReviewModal(props: Props) {
 
               {/* CTAs */}
         
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to item"
-                    title="Go to item"
-                    disabled
+                  variant="outline"
+                  size="sm"
+                  className="justify-center gap-1"
+                  aria-label="Go to item"
+                  title="Go to item"
+                  onClick={handleGoToItem}
+                  disabled={!itemId}
                 >
-                    <Utensils className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to item</span>
+                  <Utensils className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to item</span>
                 </Button>
 
                 <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to restaurant"
-                    title="Go to restaurant"
-                    onClick={handleGoToRestaurant}
+                  variant="outline"
+                  size="sm"
+                  className="justify-center gap-1"
+                  aria-label="Go to restaurant"
+                  title="Go to restaurant"
+                  onClick={handleGoToRestaurant}
+                  disabled={!restaurantId}
                 >
-                    <Building2 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to restaurant</span>
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to restaurant</span>
                 </Button>
 
                 <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to reviewer"
-                    title="Go to reviewer"
-                    disabled
+                  variant="outline"
+                  size="sm"
+                  className="justify-center gap-1"
+                  aria-label="Go to reviewer"
+                  title="Go to reviewer"
+                  onClick={handleGoToReviewer}
+                  disabled={!profileId}
                 >
-                    <UserIcon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to reviewer</span>
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to reviewer</span>
                 </Button>
-                </div>
+              </div>
 
               </div>
             </div>

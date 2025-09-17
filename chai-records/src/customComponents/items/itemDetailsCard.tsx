@@ -16,9 +16,11 @@ import { Loader } from "@/customComponents/loader/loader";
 import { getItemById } from "@/api/getItemById";
 import type { Item } from "@/types/item";
 import { cn } from "@/lib/utils";
+import { FacetPills } from "@/customComponents/attributes/facetPills";
 
 type ItemDetailsCardProps = {
   itemId: string;
+  initialItem?: Item | null;
 };
 
 type DetailItem = {
@@ -175,13 +177,22 @@ function ItemImage({ imageUrl, name }: { imageUrl: string | null; name: string }
   );
 }
 
-export function ItemDetailsCard({ itemId }: ItemDetailsCardProps) {
-  const [item, setItem] = useState<Item | null>(null);
+export function ItemDetailsCard({ itemId, initialItem = null }: ItemDetailsCardProps) {
+  const [item, setItem] = useState<Item | null>(initialItem ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialItem);
 
   useEffect(() => {
     let alive = true;
+
+    if (initialItem && initialItem.id === itemId) {
+      setItem(initialItem);
+      setError(null);
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
 
     (async () => {
       setLoading(true);
@@ -207,9 +218,12 @@ export function ItemDetailsCard({ itemId }: ItemDetailsCardProps) {
     return () => {
       alive = false;
     };
-  }, [itemId]);
+  }, [itemId, initialItem]);
 
   const metadataDetails = useMemo(() => extractMetadata(item?.metadata ?? null), [item?.metadata]);
+  const consensus = item?.consensusFacets ?? null;
+  const hasSingleFacet = Boolean(consensus?.singleFacet);
+  const hasMultiFacets = (consensus?.multiFacets?.length ?? 0) > 0;
 
   if (loading) {
     return (
@@ -297,6 +311,39 @@ export function ItemDetailsCard({ itemId }: ItemDetailsCardProps) {
             <DetailGrid items={metadataDetails} />
           </div>
         ) : null}
+
+        {(hasSingleFacet || hasMultiFacets) && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Community highlights
+            </h3>
+
+            {hasSingleFacet && consensus?.singleFacet ? (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  {consensus.singleFacet.name}
+                </h4>
+                <FacetPills
+                  facetName={consensus.singleFacet.name}
+                  mode="single"
+                  valueSingle={consensus.singleFacet.value}
+                  readOnly
+                />
+              </div>
+            ) : null}
+
+            {hasMultiFacets
+              ? consensus?.multiFacets.map((facet) => (
+                  <div key={facet.name} className="space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                      {facet.name}
+                    </h4>
+                    <FacetPills facetName={facet.name} mode="multi" valueMulti={facet.values} readOnly />
+                  </div>
+                ))
+              : null}
+          </div>
+        )}
       </CardContent>
 
       <CardFooter className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

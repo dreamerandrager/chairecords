@@ -11,11 +11,19 @@ type Props = {
   valueMulti?: string[];
   onChangeSingle?: (val: string | null) => void;
   onChangeMulti?: (vals: string[]) => void;
+  readOnly?: boolean;
 };
 
 export function FacetPills({
-  facetName, mode, maxMulti = 3, disabled,
-  valueSingle = null, valueMulti = [], onChangeSingle, onChangeMulti
+  facetName,
+  mode,
+  maxMulti = 3,
+  disabled,
+  valueSingle = null,
+  valueMulti = [],
+  onChangeSingle,
+  onChangeMulti,
+  readOnly = false,
 }: Props) {
   const [options, setOptions] = useState<{ id:number; value:string; slug:string | null }[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,11 +57,13 @@ export function FacetPills({
             key={opt.id}
             type="button"
             disabled={disabled}
+            aria-disabled={disabled || readOnly}
+            tabIndex={readOnly ? -1 : undefined}
             onClick={() => {
+              if (readOnly) return;
               if (mode === 'single') {
                 onChangeSingle?.(active ? null : opt.value);
               } else {
-                const set = new Set((valueMulti ?? []).map(v => v.toLowerCase()));
                 if (active) {
                   onChangeMulti?.((valueMulti ?? []).filter(v => v.toLowerCase() !== opt.value.toLowerCase()));
                 } else {
@@ -62,7 +72,7 @@ export function FacetPills({
                 }
               }
             }}
-            className={`px-3 py-1 rounded-full border text-sm ${active ? 'bg-primary text-white border-primary' : 'hover:bg-muted'}`}
+            className={`px-3 py-1 rounded-full border text-sm ${active ? 'bg-primary text-white border-primary' : 'hover:bg-muted'} ${readOnly ? 'cursor-default' : ''}`}
             title={opt.value}
           >
             {opt.value}

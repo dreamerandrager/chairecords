@@ -1,5 +1,5 @@
 // api/getItemById.ts
-import type { Item } from "@/types/item";
+import type { Item, ItemFacetSummary } from "@/types/item";
 import { supabase } from "@/utils/supabase/supabase";
 
 type RawImage = {
@@ -94,8 +94,80 @@ type RpcRow = {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  // The RPC also returns single_facets / multi_facets (jsonb), but we don't need them here.
+  single_facets?: unknown;
+  multi_facets?: unknown;
 };
+
+type RpcSingleFacet = {
+  facet_name?: unknown;
+  name?: unknown;
+  value?: unknown;
+  facet_value?: unknown;
+};
+
+type RpcMultiFacetValue = {
+  value?: unknown;
+  facet_value?: unknown;
+};
+
+type RpcMultiFacet = {
+  facet_name?: unknown;
+  name?: unknown;
+  values?: unknown;
+};
+
+function getFacetLabel(raw: unknown): string | null {
+  if (typeof raw === "string") return raw.trim().length > 0 ? raw.trim() : null;
+  return null;
+}
+
+function parseSingleFacet(raw: unknown): ItemFacetSummary["singleFacet"] {
+  if (!Array.isArray(raw)) return null;
+
+  for (const entry of raw as RpcSingleFacet[]) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const name = getFacetLabel((entry as RpcSingleFacet).facet_name ?? (entry as RpcSingleFacet).name);
+    const value = getFacetLabel((entry as RpcSingleFacet).value ?? (entry as RpcSingleFacet).facet_value);
+
+    if (name && value) return { name, value };
+  }
+
+  return null;
+}
+
+function parseMultiFacetValues(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+
+  const values: string[] = [];
+  for (const entry of raw as RpcMultiFacetValue[]) {
+    if (!entry || typeof entry !== "object") continue;
+    const label = getFacetLabel(entry.value ?? entry.facet_value);
+    if (label) values.push(label);
+    if (values.length >= 3) break;
+  }
+  return values;
+}
+
+function parseMultiFacets(raw: unknown): ItemFacetSummary["multiFacets"] {
+  if (!Array.isArray(raw)) return [];
+
+  const facets: ItemFacetSummary["multiFacets"] = [];
+  for (const entry of raw as RpcMultiFacet[]) {
+    if (!entry || typeof entry !== "object") continue;
+
+    const name = getFacetLabel(entry.facet_name ?? entry.name);
+    if (!name) continue;
+
+    const values = parseMultiFacetValues(entry.values);
+    if (values.length === 0) continue;
+
+    facets.push({ name, values });
+    if (facets.length >= 3) break;
+  }
+
+  return facets;
+}
 
 export async function getItemById(id: string): Promise<Item | null> {
   // 1) core item + consensus facets via RPC (typed table)
@@ -133,6 +205,11 @@ export async function getItemById(id: string): Promise<Item | null> {
 
   const imageUrl = pickImageFromGallery(imgs as RawImage[] | undefined, metadata);
 
+  const consensusFacets: ItemFacetSummary = {
+    singleFacet: parseSingleFacet(row.single_facets),
+    multiFacets: parseMultiFacets(row.multi_facets),
+  };
+
   return {
     id: row.item_id, // note: RPC returns item_id
     restaurantId: row.restaurant_id,
@@ -149,5 +226,6 @@ export async function getItemById(id: string): Promise<Item | null> {
     imageUrl: imageUrl ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    consensusFacets,
   } satisfies Item;
 }

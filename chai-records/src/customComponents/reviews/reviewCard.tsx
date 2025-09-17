@@ -7,10 +7,11 @@ import { ReviewModal } from './reviewModal';
 
 export type ReviewCardProps = {
   id: string;
+  itemId: string; // Added to support ReviewModal navigation to the item page.
   profileId: string;            // ✅ required now
   itemName: string;
   restaurantName: string;
-  restaurantId: string;  
+  restaurantId: string;
   rating: number;               // 1..5
   body?: string | null;
   photoUrl?: string | null;
@@ -30,6 +31,7 @@ function Stars({ value }: { value: number }) {
 
 export function ReviewCard({
   id,
+  itemId,
   profileId,
   itemName,
   restaurantName,
@@ -106,10 +108,11 @@ export function ReviewCard({
         <ReviewModal
           onClose={() => setOpen(false)}
           id={id}
+          itemId={itemId}
           profileId={profileId}
           itemName={itemName}
           restaurantName={restaurantName}
-          restaurantId={restaurantId} 
+          restaurantId={restaurantId}
           rating={rating}
           body={body ?? null}
           photoUrl={photoUrl ?? null}
