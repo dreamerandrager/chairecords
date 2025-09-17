@@ -2,126 +2,128 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/utils/supabase/supabase';
 import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/utils/supabase/supabase';
+
+import { SearchableSelect } from '@/customComponents/inputs/searchableSelect';
+import { FacetPills } from '@/customComponents/attributes/facetPills';
+
+// API helpers (renamed as you specified)
+import { getBrandsBySearch } from '@/api/getBrandsBySearch';
+import { getRestaurantsBySearch } from '@/api/getRestaurantsBySearch';
+import { createUnverifiedRestaurant } from '@/api/createUnverifiedRestaurant';
+import { getBrandItemsBySearch } from '@/api/getBrandItemsBySearch';
+import { resolveOrCreateItemForRestaurant } from '@/api/resolveOrCreateItemForRestaurant';
+import { createReview } from '@/api/createReview';
+import { upsertReviewFacets } from '@/api/upsertReviewFacets';
+import { attachItemImage } from '@/api/attachItemImage';
 
 const STORAGE_BUCKET = 'item-images';
 
 type Brand = { id: string; name: string; slug: string };
-type Restaurant = { id: string; name: string; brand_id: string | null };
+type Restaurant = { id: string; name: string; brand_id: string | null; is_verified?: boolean };
 type BrandItem = { name: string; category: 'FOOD' | 'BEVERAGE'; sample_item_id?: string };
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Option = { value: string; label: string; meta?: any };
 
 export default function CreateReviewPage() {
   const router = useRouter();
 
-  // ---------- state ----------
-  const [brands, setBrands] = useState<Brand[]>([]);
+  // ---------- selection state ----------
   const [brandId, setBrandId] = useState<string>('');
+  const [brandOption, setBrandOption] = useState<Option | null>(null);
 
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [restaurantId, setRestaurantId] = useState<string>('');
+  const [restaurantOption, setRestaurantOption] = useState<Option | null>(null);
+  // near your other state
+const [restaurantQuery, setRestaurantQuery] = useState('');
+const [creatingRestaurant, setCreatingRestaurant] = useState(false);
 
+
+  // Item search
   const [itemQuery, setItemQuery] = useState('');
   const [brandItemSuggestions, setBrandItemSuggestions] = useState<BrandItem[]>([]);
   const [chosenBrandItem, setChosenBrandItem] = useState<BrandItem | null>(null);
+  const [loadingBrandItems, setLoadingBrandItems] = useState(false);
 
+  // Upload + review
   const [file, setFile] = useState<File | null>(null);
   const [uploadedUrl, setUploadedUrl] = useState<string>('');
-
   const [rating, setRating] = useState<number>(5);
   const [body, setBody] = useState<string>('');
-
   const [loading, setLoading] = useState(false);
-  const [loadingRestaurants, setLoadingRestaurants] = useState(false);
-  const [loadingBrandItems, setLoadingBrandItems] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ---------- load brands ----------
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from('brands')
-        .select('id, name, slug')
-        .order('name', { ascending: true })
-        .limit(200);
-      if (!error && data) setBrands(data as Brand[]);
-    })();
-  }, []);
+  // Item descriptors (category + facets)
+  const [itemCategory, setItemCategory] = useState<'FOOD' | 'BEVERAGE'>('FOOD');
+  const [singleFacetValue, setSingleFacetValue] = useState<string | null>(null); // Course or BeverageFamily
+  const [multiFacetValues, setMultiFacetValues] = useState<string[]>([]);        // Attribute (<=3)
 
-  // ---------- load restaurants for brand ----------
+  // somewhere near your other state
+const categoryLocked = !!chosenBrandItem; // derived lock
+
+
+  // If the user picks a suggested brand item, carry its category through
   useEffect(() => {
-    if (!brandId) {
-      setRestaurants([]);
-      setRestaurantId('');
-      return;
+    if (chosenBrandItem?.category) {
+      setItemCategory(chosenBrandItem.category);
     }
-    setLoadingRestaurants(true);
-    (async () => {
-      const { data, error } = await supabase
-        .from('restaurants')
-        .select('id, name, brand_id')
-        .eq('brand_id', brandId)
-        .order('name', { ascending: true });
-      if (!error && data) setRestaurants(data as Restaurant[]);
-      setRestaurantId('');
-      setLoadingRestaurants(false);
-    })();
-  }, [brandId]);
+  }, [chosenBrandItem]);
 
-  // ---------- search brand items (suggestions) ----------
+  // If category changes, clear facet selections (keeps logic simple)
   useEffect(() => {
-    if (!brandId) {
+    setSingleFacetValue(null);
+    setMultiFacetValues([]);
+  }, [itemCategory]);
+
+  // ---------- brand-wide item search ----------
+  useEffect(() => {
+    const effectiveBrandId =
+      brandId || (restaurantOption?.meta?.brand_id as string | undefined) || '';
+
+    if (!effectiveBrandId || !itemQuery || itemQuery.trim().length < 2) {
       setBrandItemSuggestions([]);
       return;
     }
-    // Only hit the DB for 2+ chars
-    if (!itemQuery || itemQuery.trim().length < 2) {
-      setBrandItemSuggestions([]);
-      return;
-    }
-    let isCancelled = false;
-    setLoadingBrandItems(true);
 
+    let cancel = false;
     (async () => {
-      // Prefer brand-dedup view if you created it; otherwise fall back to v_items_with_brand
-      const { data, error } =
-        await supabase
-          .from('v_brand_items')               // columns: brand_id, brand_slug, name, slug, category, sample_item_id, updated_at
-          .select('name, category, sample_item_id')
-          .eq('brand_id', brandId)
-          .ilike('name', `%${itemQuery}%`)
-          .order('name', { ascending: true })
-          .limit(20);
-
-      if (!isCancelled) {
-        if (!error && data) {
-          setBrandItemSuggestions(
-            data.map((d) => ({
-              name: d.name,
-              category: d.category,
-              sample_item_id: d.sample_item_id,
-            })) as BrandItem[],
-          );
-        }
-        setLoadingBrandItems(false);
+      setLoadingBrandItems(true);
+      try {
+        const rows = await getBrandItemsBySearch(effectiveBrandId, itemQuery);
+        if (!cancel) setBrandItemSuggestions(rows as BrandItem[]);
+      } finally {
+        if (!cancel) setLoadingBrandItems(false);
       }
     })();
 
     return () => {
-      isCancelled = true;
+      cancel = true;
     };
-  }, [brandId, itemQuery]);
+  }, [brandId, restaurantOption, itemQuery]);
 
-  const canSubmit = useMemo(() => {
-    if (!brandId || !restaurantId) return false;
-    if (!chosenBrandItem && itemQuery.trim().length < 2) return false;
-    if (!file && !uploadedUrl) return false;
-    if (!rating || rating < 1 || rating > 5) return false;
-    return !loading;
-  }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
+  // // ---------- guards ----------
+  // const canSubmit = useMemo(() => {
+  //   const haveBrandOrRestaurant = Boolean(brandId || restaurantId);
+  //   const haveRestaurant = Boolean(restaurantId);
+  //   const haveItemText = chosenBrandItem || itemQuery.trim().length >= 2;
+  //   const haveImage = Boolean(file || uploadedUrl);
+  //   const ratingOk = rating >= 1 && rating <= 5;
+  //   return !loading && haveBrandOrRestaurant && haveRestaurant && haveItemText && haveImage && ratingOk;
+  // }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
+
+const canSubmit = useMemo(() => {
+  const hasRestaurant = !!restaurantId || restaurantQuery.trim().length >= 2;
+  if (!hasRestaurant) return false;
+  if (!chosenBrandItem && itemQuery.trim().length < 2) return false;
+  if (!file && !uploadedUrl) return false;
+  if (!rating || rating < 1 || rating > 5) return false;
+  return !loading;
+}, [restaurantId, restaurantQuery, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
 
   // ---------- helpers ----------
   async function uploadImageOrGetUrl(itemIdForPath: string) {
@@ -141,89 +143,114 @@ export default function CreateReviewPage() {
     return pub.publicUrl;
   }
 
-  /**
-   * Resolve or create an item for the selected restaurant:
-   * 1) exact ILIKE in the restaurant
-   * 2) else copy category from best brand candidate (ILIKE on brand)
-   * 3) else insert with fallback category = 'FOOD'
-   */
-  async function resolveOrCreateItemForRestaurant(): Promise<{ id: string }> {
-  const desiredName = (chosenBrandItem?.name || itemQuery).trim();
-
-  const { data, error } = await supabase.rpc('resolve_or_create_item', {
-    p_brand_id: brandId,                          // uuid (brand selected)
-    p_restaurant_id: restaurantId,                // uuid (restaurant selected)
-    p_item_name: desiredName,                     // string
-    p_category: (chosenBrandItem?.category ?? null) as
-      | 'FOOD'
-      | 'BEVERAGE'
-      | null,                                     // optional hint; null lets SQL infer
-  });
-
-  if (error) throw error;
-  if (!data) throw new Error('Item could not be resolved/created.');
-  return { id: String(data) };                    // function returns the new/existing item uuid
+  async function getOtherBrandId(): Promise<string> {
+  const list = await getBrandsBySearch('other');
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const other = list.find((b: any) => (b.slug || '').toLowerCase() === 'other');
+  if (!other) throw new Error("Couldn't resolve the 'Other' brand");
+  return other.id as string;
 }
 
-
-  // ---------- submit ----------
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
+  e.preventDefault();
+  if (!canSubmit) return;
 
-    setLoading(true);
-    setError(null);
-    try {
-      // auth
-      const { data: auth } = await supabase.auth.getUser();
-      const profileId = auth.user?.id;
-      if (!profileId) throw new Error('Not signed in.');
+  setLoading(true);
+  setError(null);
 
-      // resolve/create item for this restaurant
-      const { id: finalItemId } = await resolveOrCreateItemForRestaurant();
+  try {
+    // auth
+    const { data: auth } = await supabase.auth.getUser();
+    const profileId = auth.user?.id;
+    if (!profileId) throw new Error('Not signed in.');
 
-      // upload image first
-      const imageUrl = await uploadImageOrGetUrl(finalItemId);
-
-      // create review
-      const { data: review, error: revErr } = await supabase
-        .from('reviews')
-        .insert({
-          item_id: finalItemId,
-          rating_overall: rating,
-          body: body || null,
-          profile_id: profileId,
-        })
-        .select('id')
-        .single();
-      if (revErr) throw revErr;
-
-      // attach image to item with provenance
-      const { error: imgErr } = await supabase.from('item_images').insert({
-        item_id: finalItemId,
-        url: imageUrl,
-        sort_order: 0,
-        is_primary: false,
-        source_review_id: review!.id,
-      });
-      if (imgErr) throw imgErr;
-
-      router.push(`/reviews/${profileId}`);
-    } catch (err: unknown) {
-      console.error(err);
-      // setError(err?.message ?? 'Something went wrong.');
-    } finally {
-      setLoading(false);
+    // --- BRAND: explicit → restaurant.brand_id → "Other"
+    let effectiveBrandId = brandId as string | undefined;
+    if (!effectiveBrandId && restaurantOption?.meta?.brand_id) {
+      effectiveBrandId = restaurantOption.meta.brand_id as string;
     }
+    if (!effectiveBrandId) {
+      effectiveBrandId = await getOtherBrandId();
+    }
+
+    // --- RESTAURANT: select existing OR create unverified (on submit)
+    let finalRestaurantId = restaurantId as string | undefined;
+    if (!finalRestaurantId) {
+      const typed = restaurantQuery.trim();
+      if (typed.length < 2) {
+        throw new Error('Please select a restaurant or type at least 2 characters to create one.');
+      }
+      // create unverified (brand-scoped)
+      const newId = await createUnverifiedRestaurant(typed, effectiveBrandId);
+      finalRestaurantId = newId;
+
+      // reflect selection in UI state (optional, for UX)
+      const opt = { value: newId, label: typed, meta: { is_verified: false, brand_id: effectiveBrandId } };
+      setRestaurantId(newId);
+      setRestaurantOption(opt);
+      setRestaurantQuery('');
+    }
+
+    // --- ITEM: resolve/create (facet-free RPC)
+    const itemName = (chosenBrandItem?.name || itemQuery).trim();
+    const finalItemId = await resolveOrCreateItemForRestaurant({
+      brandId: effectiveBrandId,
+      restaurantId: finalRestaurantId!,
+      name: itemName,
+      category: itemCategory, // 'FOOD' | 'BEVERAGE'
+    });
+
+    // --- Upload image
+    const imageUrl = await uploadImageOrGetUrl(finalItemId);
+
+    // --- Create review
+    const reviewId = await createReview({
+      itemId: finalItemId,
+      rating,
+      body: body || null,
+      profileId,
+    });
+
+    // --- Attach review facets (single + multi)
+    await upsertReviewFacets({
+      reviewId,
+      singleFacet: singleFacetValue
+        ? {
+            name: itemCategory === 'FOOD' ? 'Course' : 'BeverageFamily',
+            value: singleFacetValue,
+          }
+        : null,
+      multiFacet: {
+        name: 'Attribute',
+        values: multiFacetValues.slice(0, 3),
+      },
+    });
+
+    // --- Attach image to item with provenance
+    await attachItemImage({
+      itemId: finalItemId,
+      imageUrl,
+      sourceReviewId: reviewId,
+      sortOrder: 0,
+      isPrimary: false,
+    });
+
+    router.push(`/reviews/${profileId}`);
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message ?? 'Something went wrong.');
+  } finally {
+    setLoading(false);
   }
+}
 
   // ---------- UI ----------
   return (
     <div className="mx-auto w-full max-w-2xl p-4 space-y-6">
-      {/* <h1 className="text-xl font-semibold">Create Review</h1> */}
       <p className="text-sm opacity-80">
-        Start by choosing a <strong>Brand</strong>, then a <strong>Restaurant</strong>. Search the brand’s menu;
-        if we can’t find your item, we’ll create it for that restaurant.
+        Pick a <strong>Brand</strong> or directly search a <strong>Restaurant</strong>. Search the brand’s menu;
+        if it’s not there, we’ll create the item for that restaurant with your descriptors.
       </p>
 
       {error && (
@@ -233,92 +260,203 @@ export default function CreateReviewPage() {
       )}
 
       <form onSubmit={onSubmit} className="space-y-6">
-        {/* Brand */}
+        {/* Brand (searchable) */}
         <div className="space-y-2">
-          <Label htmlFor="brand">Brand</Label>
-          <select
-            id="brand"
-            className="w-full rounded-md border p-2 dark:bg-gray-800"
-            value={brandId}
-            onChange={(e) => {
-              setBrandId(e.target.value);
+          <Label>Brand</Label>
+          <SearchableSelect
+            value={brandId || null}
+            onChange={(opt: Option) => {
+              setBrandOption(opt);
+              setBrandId(opt?.value || '');
+              // Reset dependent selections
+              setRestaurantOption(null);
               setRestaurantId('');
-              setItemQuery('');
               setChosenBrandItem(null);
+              setItemQuery('');
               setBrandItemSuggestions([]);
             }}
-          >
-            <option value="">Select a brand…</option>
-            {brands.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Restaurant (filtered by brand) */}
-        <div className="space-y-2">
-          <Label htmlFor="restaurant">Restaurant</Label>
-          <select
-            id="restaurant"
-            className="w-full rounded-md border p-2 dark:bg-gray-800"
-            value={restaurantId}
-            onChange={(e) => {
-              setRestaurantId(e.target.value);
-              setChosenBrandItem(null);
+            loadOptions={async (q: string) => {
+              const rows: Brand[] = await getBrandsBySearch(q);
+              return rows.map((b) => ({ value: b.id, label: b.name, meta: b }));
             }}
-            disabled={!brandId || loadingRestaurants}
-          >
-            <option value="">
-              {loadingRestaurants ? 'Loading…' : 'Select a restaurant…'}
-            </option>
-            {restaurants.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Item search within brand */}
-        <div className="space-y-2">
-          <Label htmlFor="itemSearch">Item (brand-wide search)</Label>
-          <Input
-            id="itemSearch"
-            placeholder="e.g. Zinger Burger"
-            value={chosenBrandItem ? chosenBrandItem.name : itemQuery}
-            onChange={(e) => {
-              setChosenBrandItem(null);
-              setItemQuery(e.target.value);
-            }}
-            disabled={!brandId}
+            placeholder="Search brand…"
+            // previewOptions={true}
+            // previewCount={10}
           />
-          {brandId && itemQuery.trim().length >= 2 && (
-            <div className="rounded-md border p-2 text-sm dark:bg-gray-800">
-              {loadingBrandItems && <div>Searching…</div>}
-              {!loadingBrandItems && brandItemSuggestions.length === 0 && (
-                <div>No brand matches. You can still create it.</div>
-              )}
-              {!loadingBrandItems &&
-                brandItemSuggestions.map((s, idx) => (
-                  <button
-                    type="button"
-                    key={`${s.name}-${idx}`}
-                    className="block w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded"
-                    onClick={() => {
-                      setChosenBrandItem(s);
-                      setItemQuery(s.name);
-                    }}
-                  >
-                    {s.name} <span className="opacity-60">({s.category})</span>
-                  </button>
-                ))}
-            </div>
-          )}
         </div>
 
-        {/* Image */}
+        <div className="space-y-1">
+  <Label>Restaurant</Label>
+  <SearchableSelect
+    value={restaurantId || null}
+    selectedOption={restaurantOption}
+    onChange={(opt: Option) => {
+      setRestaurantOption(opt || null);
+      setRestaurantId(opt?.value || '');
+      setChosenBrandItem(null);
+      // lock in the label; also clear query so helper hides
+      setRestaurantQuery('');
+    }}
+    onTextChange={(text) => {
+      // typing = no selection yet
+      if (restaurantId) setRestaurantId('');
+      if (restaurantOption) setRestaurantOption(null);
+      setChosenBrandItem(null);
+      setRestaurantQuery(text);
+    }}
+    loadOptions={async (q: string) => {
+      const rows: Restaurant[] = await getRestaurantsBySearch({
+        brandId: brandId || undefined,
+        q,
+        includeUnverified: true, // keep public search clean
+      });
+      return rows.map((r) => ({
+        value: r.id,
+        label: r.name,
+        meta: r,
+      }));
+    }}
+    placeholder={brandId ? 'Search this brand’s restaurants…' : 'Search restaurants…'}
+    previewOptions
+    previewCount={5}
+  />
+
+  {/* “Can’t find it?” helper — now purely informational; creation happens on submit */}
+{!restaurantId && restaurantQuery.trim().length >= 2 && (
+  <div className="text-xs opacity-80">
+    Can’t find it? We’ll create “<strong>{restaurantQuery.trim()}</strong>” when you submit,
+    and our admins will verify it.
+  </div>
+)}
+
+
+  {/* If selected restaurant is unverified, show a hint */}
+  {restaurantOption?.meta?.is_verified === false && (
+    <div className="text-xs text-amber-600">
+      Pending verification — visible to you now, public later.
+    </div>
+  )}
+</div>
+
+
+        
+
+        <div className="space-y-2">
+  <Label>Item (brand-wide search)</Label>
+  <SearchableSelect
+    value={
+      chosenBrandItem
+        ? (chosenBrandItem.sample_item_id ?? chosenBrandItem.name)
+        : null
+    }
+    onChange={(opt) => {
+      // user picked a suggestion
+      const meta = opt?.meta as { name: string; category: 'FOOD'|'BEVERAGE'; sample_item_id?: string } | undefined;
+      if (meta) {
+        setChosenBrandItem(meta);
+        setItemQuery(meta.name);          // keep text in sync
+        setItemCategory(meta.category);   // ✅ lock category to the chosen item’s category
+      } else {
+        setChosenBrandItem(null);
+      }
+    }}
+    onTextChange={(text) => {
+      // user is typing; allow create-new flow (unlocks category)
+      setChosenBrandItem(null);
+      setItemQuery(text);
+    }}
+    loadOptions={async (q: string) => {
+      const effectiveBrandId =
+        brandId || (restaurantOption?.meta?.brand_id as string | undefined) || '';
+      if (!effectiveBrandId) return [];
+
+      const rows = await getBrandItemsBySearch(effectiveBrandId, q);
+      return rows.map((r) => ({
+        value: r.name,
+        label: `${r.name}`,
+        meta: r,
+      }));
+    }}
+    placeholder="e.g. Cappuccino"
+    minChars={2}
+    debounceMs={250}
+    previewOptions={true}
+    previewCount={5}
+    disabled={!(brandId || restaurantOption?.meta?.brand_id)}
+  />
+
+  {/* Optional helper + clear when locked */}
+  {categoryLocked ? (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="opacity-70">
+        Category locked to <strong>{chosenBrandItem?.category}</strong> (from selected item).
+      </span>
+      {/* <button
+        type="button"
+        className="underline"
+        onClick={() => {
+          setChosenBrandItem(null); // unlock
+          // keep itemQuery as-is so user can tweak it, or clear if you prefer:
+          setItemQuery('');
+        }}
+      >
+        Clear selection
+      </button> */}
+    </div>
+  ) : (
+    !chosenBrandItem && itemQuery.trim().length >= 2 && (
+      <div className="text-xs opacity-70">
+        Can’t find it? We’ll create “<strong>{itemQuery.trim()}</strong>” for this restaurant.
+      </div>
+    )
+  )}
+</div>
+
+{/* Category toggle */}
+<div className="space-y-2">
+  <Label>Category</Label>
+  <div className="flex gap-2">
+    {(['FOOD', 'BEVERAGE'] as const).map((cat) => (
+      <button
+        key={cat}
+        type="button"
+        disabled={categoryLocked}                                  // ✅ locked when an item is selected
+        className={`px-3 py-1 rounded border text-sm ${
+          itemCategory === cat ? 'bg-primary text-white border-primary' : ''
+        } ${categoryLocked ? 'opacity-60 cursor-not-allowed' : ''}`}  // subtle disabled styling
+        onClick={() => setItemCategory(cat)}
+      >
+        {cat}
+      </button>
+    ))}
+  </div>
+</div>
+
+
+        {/* Single facet (Course or BeverageFamily) */}
+        <div className="space-y-2">
+          <Label>{itemCategory === 'FOOD' ? 'Course' : 'Beverage Family'} (pick one)</Label>
+          <FacetPills
+            facetName={itemCategory === 'FOOD' ? 'Course' : 'Beverages'}
+            mode="single"
+            valueSingle={singleFacetValue}
+            onChangeSingle={setSingleFacetValue}
+          />
+        </div>
+
+        {/* Multi facet (Attributes, max 3) */}
+        <div className="space-y-2">
+          <Label>Attributes (up to 3)</Label>
+          <FacetPills
+            facetName="Attribute"
+            mode="multi"
+            maxMulti={3}
+            valueMulti={multiFacetValues}
+            onChangeMulti={setMultiFacetValues}
+          />
+        </div>
+
+        {/* Image upload */}
         <div className="space-y-2">
           <Label>Image</Label>
           <Input
@@ -342,16 +480,16 @@ export default function CreateReviewPage() {
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="body">Review</Label>
-          <Textarea
-            id="body"
-            placeholder="What did you think?"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={8}
-            spellCheck
-          />
-        </div>
+            <Label htmlFor="body">Review</Label>
+            <Textarea
+              id="body"
+              placeholder="What did you think?"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={8}
+              spellCheck
+            />
+          </div>
         </div>
 
         <Button type="submit" disabled={!canSubmit}>

@@ -8,6 +8,7 @@ export async function getReviewsByProfileId(profileId: string): Promise<Review[]
     .select(`
       id,
       created_at,
+      profile_id,
       rating_overall,
       body,
       item:items (
@@ -31,6 +32,7 @@ export async function getReviewsByProfileId(profileId: string): Promise<Review[]
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any) => ({
     id: r.id as string,
+    profileId: r.profile_id as string,
     createdAt: r.created_at as string,
     rating: r.rating_overall as number,
     body: (r.body ?? null) as string | null,
