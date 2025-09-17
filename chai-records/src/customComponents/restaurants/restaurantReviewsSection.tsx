@@ -65,6 +65,7 @@ export function RestaurantReviewsSection({
           {pageItems.map((r) => (
             <ReviewCard
               key={r.id}
+              profileId={r.profileId}
               id={r.id}
               itemName={r.itemName}
               restaurantName={r.restaurantName ?? restaurantName}

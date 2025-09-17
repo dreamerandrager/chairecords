@@ -1,5 +1,6 @@
 export type Review = {
   id: string;
+  profileId: string;
   createdAt: string;
   rating: number;
   body: string | null;

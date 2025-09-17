@@ -56,6 +56,7 @@ export function ReviewsSection({
                 <ReviewCard
                   key={r.id}
                   id={r.id}
+                  profileId={r.profileId}
                   itemName={r.itemName}
                   restaurantName={r.restaurantName}
                   rating={r.rating}
