@@ -10,6 +10,7 @@ export type ReviewCardProps = {
   profileId: string;            // ✅ required now
   itemName: string;
   restaurantName: string;
+  restaurantId: string;  
   rating: number;               // 1..5
   body?: string | null;
   photoUrl?: string | null;
@@ -32,6 +33,7 @@ export function ReviewCard({
   profileId,
   itemName,
   restaurantName,
+  restaurantId,
   rating,
   body,
   photoUrl,
@@ -107,6 +109,7 @@ export function ReviewCard({
           profileId={profileId}
           itemName={itemName}
           restaurantName={restaurantName}
+          restaurantId={restaurantId} 
           rating={rating}
           body={body ?? null}
           photoUrl={photoUrl ?? null}

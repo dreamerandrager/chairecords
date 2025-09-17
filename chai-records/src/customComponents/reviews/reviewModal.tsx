@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/utils/supabase/supabase';
 import { cn } from '@/lib/utils';
 import { Utensils, Building2, User as UserIcon, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 type Profile = { display_name: string; avatar_url: string | null };
 
@@ -15,6 +16,7 @@ type Props = {
   profileId: string;
   itemName: string;
   restaurantName: string;
+  restaurantId: string;  
   rating: number;
   body: string | null;
   photoUrl: string | null;
@@ -32,9 +34,9 @@ function Stars({ value }: { value: number }) {
 }
 
 export function ReviewModal(props: Props) {
-  const { onClose, profileId, itemName, restaurantName, rating, body, photoUrl, createdAt } = props;
+  const { onClose, profileId, itemName, restaurantName, restaurantId, rating, body, photoUrl, createdAt } = props;
   const [profile, setProfile] = useState<Profile | null>(null);
-
+  const router = useRouter();
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -51,6 +53,11 @@ export function ReviewModal(props: Props) {
   function onBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) onClose();
   }
+
+  const handleGoToRestaurant = () => {
+    if (!restaurantId) return;
+    router.push(`/restaurants/${restaurantId}`);
+  };
 
   return (
     <div
@@ -155,7 +162,7 @@ export function ReviewModal(props: Props) {
                     className="justify-center gap-1"
                     aria-label="Go to restaurant"
                     title="Go to restaurant"
-                    disabled
+                    onClick={handleGoToRestaurant}
                 >
                     <Building2 className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Go to restaurant</span>

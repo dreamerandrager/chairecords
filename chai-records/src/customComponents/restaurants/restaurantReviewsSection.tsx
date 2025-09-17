@@ -29,6 +29,7 @@ export function RestaurantReviewsSection({
       setLoading(true);
       try {
         const list = await getReviewsByRestaurantId(restaurantId);
+        console.log("list",list)
         if (alive) setRows(list);
       } finally {
         if (alive) setLoading(false);
@@ -69,6 +70,7 @@ export function RestaurantReviewsSection({
               id={r.id}
               itemName={r.itemName}
               restaurantName={r.restaurantName ?? restaurantName}
+              restaurantId={r.restaurantId ?? restaurantId}
               rating={r.rating}
               body={r.body}
               photoUrl={r.photoUrl ?? undefined}

@@ -59,6 +59,7 @@ export function ReviewsSection({
                   profileId={r.profileId}
                   itemName={r.itemName}
                   restaurantName={r.restaurantName}
+                  restaurantId={r.restaurantId}
                   rating={r.rating}
                   body={r.body}
                   photoUrl={r.photoUrl ?? undefined}

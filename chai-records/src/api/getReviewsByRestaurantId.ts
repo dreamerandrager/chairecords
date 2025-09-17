@@ -10,20 +10,19 @@ export async function getReviewsByRestaurantId(restaurantId: string): Promise<Re
       created_at,
       rating_overall,
       body,
-      item:items (
+      profile_id,
+      item:items!inner (                        
         id,
         name,
-        restaurant:restaurants (
-          id,
-          name
-        )
+        restaurant_id,
+        restaurant:restaurants ( id, name )
       ),
       review_images:item_images!item_images_source_review_id_fkey (
         url,
         is_primary
       )
     `)
-    .eq("item:items.restaurant_id", restaurantId)
+    .eq("item.restaurant_id", restaurantId)       // 👈 filter on the joined alias
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -36,8 +35,9 @@ export async function getReviewsByRestaurantId(restaurantId: string): Promise<Re
     body: (r.body ?? null) as string | null,
     itemId: r.item.id as string,
     itemName: r.item.name as string,
-    restaurantId: r.item.restaurant.id as string,
-    restaurantName: r.item.restaurant.name as string,
+    restaurantId: r.item.restaurant_id as string,           // from items
+    restaurantName: r.item.restaurant?.name as string,      // from nested restaurant
     photoUrl: (r.review_images?.[0]?.url as string) ?? null,
+    profileId: r.profile_id as string,
   }));
 }
