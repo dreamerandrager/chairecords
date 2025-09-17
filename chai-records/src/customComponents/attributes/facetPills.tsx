@@ -26,6 +26,7 @@ export function FacetPills({
       setLoading(true);
       try {
         const { values } = await getFacetValuesByName(facetName);
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!cancel) setOptions(values as any);
       } finally {
         if (!cancel) setLoading(false);

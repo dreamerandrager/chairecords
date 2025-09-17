@@ -22,7 +22,7 @@ export async function getReviewsByRestaurantId(restaurantId: string): Promise<Re
         is_primary
       )
     `)
-    .eq("item.restaurant_id", restaurantId)       // 👈 filter on the joined alias
+    .eq("item.restaurant_id", restaurantId)      
     .order("created_at", { ascending: false });
 
   if (error) throw error;

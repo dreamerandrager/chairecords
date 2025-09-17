@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Option = { value: string; label: string; meta?: any };
 
 export function SearchableSelect({

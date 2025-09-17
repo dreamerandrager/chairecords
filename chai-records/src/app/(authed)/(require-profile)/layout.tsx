@@ -5,9 +5,9 @@ import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/customComponents/sidebar/app-sidebar';
 import { Loader } from '@/customComponents/loader/loader';
 import { usePathname, useRouter } from 'next/navigation';
-import { useMemo, useLayoutEffect, useRef } from 'react';
+import { useMemo, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronLeft } from 'lucide-react';
 
 export default function WithProfileLayout({
   children,
@@ -19,24 +19,39 @@ export default function WithProfileLayout({
   const headerRef = useRef<HTMLDivElement | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
 
+  const [canGoBack, setCanGoBack] = useState(false);
+
   const pageHeading = useMemo(() => {
-  const first = (pathname ?? '')
-    .split('?')[0]
-    .split('/')
-    .filter(Boolean)[0] ?? 'home';
+    const first = (pathname ?? '')
+      .split('?')[0]
+      .split('/')
+      .filter(Boolean)[0] ?? 'home';
 
-  return first
-    .split('-')
-    .filter(Boolean)
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ') || 'Home';
-}, [pathname]);
+    return first
+      .split('-')
+      .filter(Boolean)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ') || 'Home';
+  }, [pathname]);
 
-const isCreateReview = useMemo(() => {
-  const p = (pathname ?? '').split('?')[0].replace(/\/+$/,'');
-  return p === '/create-review';
-}, [pathname]);
+  const isCreateReview = useMemo(() => {
+    const p = (pathname ?? '').split('?')[0].replace(/\/+$/, '');
+    return p === '/create-review';
+  }, [pathname]);
 
+  // Detect if we can go back (best-effort using browser history length)
+  useEffect(() => {
+    // history.length > 1 usually means there's something to go back to
+    setCanGoBack(typeof window !== 'undefined' && window.history.length > 1);
+  }, [pathname]);
+
+  const handleBack = () => {
+    if (canGoBack) {
+      router.back();
+    } else {
+      router.push('/'); // fallback
+    }
+  };
 
   // Measure header height and set CSS var on <main>
   useLayoutEffect(() => {
@@ -66,8 +81,22 @@ const isCreateReview = useMemo(() => {
       <main ref={mainRef} className="relative flex-1">
         {/* Absolutely positioned header */}
         <div ref={headerRef} className="absolute inset-x-0 top-2 z-20">
+              {canGoBack && (
+                <Button
+                  variant="ghost"
+                  className="h-7 px-2"
+                  onClick={handleBack}
+                  aria-label="Back"
+                  title="Back"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                  <span className="ml-1">Back</span>
+                </Button>
+              )}
           <div className="mx-2 grid grid-cols-[auto_1fr_auto] items-center">
-            <SidebarTrigger className="size-7" />
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="size-7" />
+            </div>
             <h1 className="text-center text-sm font-semibold">Chai Records</h1>
             <div className="size-7" aria-hidden />
           </div>

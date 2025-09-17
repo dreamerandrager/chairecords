@@ -27,7 +27,7 @@ const STORAGE_BUCKET = 'item-images';
 type Brand = { id: string; name: string; slug: string };
 type Restaurant = { id: string; name: string; brand_id: string | null; is_verified?: boolean };
 type BrandItem = { name: string; category: 'FOOD' | 'BEVERAGE'; sample_item_id?: string };
-
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Option = { value: string; label: string; meta?: any };
 
 export default function CreateReviewPage() {
@@ -145,6 +145,7 @@ const canSubmit = useMemo(() => {
 
   async function getOtherBrandId(): Promise<string> {
   const list = await getBrandsBySearch('other');
+   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const other = list.find((b: any) => (b.slug || '').toLowerCase() === 'other');
   if (!other) throw new Error("Couldn't resolve the 'Other' brand");
   return other.id as string;
@@ -235,6 +236,7 @@ const canSubmit = useMemo(() => {
     });
 
     router.push(`/reviews/${profileId}`);
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error(err);
     setError(err?.message ?? 'Something went wrong.');
