@@ -18,6 +18,9 @@ import { getRestaurantsBySearch } from '@/api/getRestaurantsBySearch';
 import { createUnverifiedRestaurant } from '@/api/createUnverifiedRestaurant';
 import { getBrandItemsBySearch } from '@/api/getBrandItemsBySearch';
 import { resolveOrCreateItemForRestaurant } from '@/api/resolveOrCreateItemForRestaurant';
+import { createReview } from '@/api/createReview';
+import { upsertReviewFacets } from '@/api/upsertReviewFacets';
+import { attachItemImage } from '@/api/attachItemImage';
 
 const STORAGE_BUCKET = 'item-images';
 
@@ -55,6 +58,10 @@ export default function CreateReviewPage() {
   const [itemCategory, setItemCategory] = useState<'FOOD' | 'BEVERAGE'>('FOOD');
   const [singleFacetValue, setSingleFacetValue] = useState<string | null>(null); // Course or BeverageFamily
   const [multiFacetValues, setMultiFacetValues] = useState<string[]>([]);        // Attribute (<=3)
+
+  // somewhere near your other state
+const categoryLocked = !!chosenBrandItem; // derived lock
+
 
   // If the user picks a suggested brand item, carry its category through
   useEffect(() => {
@@ -145,11 +152,28 @@ export default function CreateReviewPage() {
 
       // Resolve/create item with descriptors (RPC)
       const itemName = (chosenBrandItem?.name || itemQuery).trim();
+      // before (had singleFacet/multiFacet) → after (just core fields)
       const finalItemId = await resolveOrCreateItemForRestaurant({
         brandId: effectiveBrandId,
         restaurantId,
         name: itemName,
-        category: itemCategory,
+        category: itemCategory, // 'FOOD' | 'BEVERAGE'
+      });
+
+
+      // Upload image
+      const imageUrl = await uploadImageOrGetUrl(finalItemId);
+
+      // Create review
+      const reviewId = await createReview({
+        itemId: finalItemId,
+        rating,
+        body: body || null,
+        profileId,
+      });
+
+      await upsertReviewFacets({
+        reviewId,
         singleFacet: singleFacetValue
           ? {
               name: itemCategory === 'FOOD' ? 'Course' : 'BeverageFamily',
@@ -162,31 +186,14 @@ export default function CreateReviewPage() {
         },
       });
 
-      // Upload image
-      const imageUrl = await uploadImageOrGetUrl(finalItemId);
-
-      // Create review
-      const { data: review, error: revErr } = await supabase
-        .from('reviews')
-        .insert({
-          item_id: finalItemId,
-          rating_overall: rating,
-          body: body || null,
-          profile_id: profileId,
-        })
-        .select('id')
-        .single();
-      if (revErr) throw revErr;
-
       // Attach image to item with provenance
-      const { error: imgErr } = await supabase.from('item_images').insert({
-        item_id: finalItemId,
-        url: imageUrl,
-        sort_order: 0,
-        is_primary: false,
-        source_review_id: review!.id,
+      await attachItemImage({
+        itemId: finalItemId,
+        imageUrl,
+        sourceReviewId: reviewId,
+        sortOrder: 0,
+        isPrimary: false,
       });
-      if (imgErr) throw imgErr;
 
       router.push(`/reviews/${profileId}`);
     } catch (err: any) {
@@ -258,6 +265,7 @@ export default function CreateReviewPage() {
               }));
             }}
             placeholder={brandId ? 'Search this brand’s restaurants…' : 'Search restaurants…'}
+            previewOptions={true}
           />
 
           {/* Add new restaurant inline */}
@@ -301,67 +309,105 @@ export default function CreateReviewPage() {
           )}
         </div>
 
-        {/* Item search within brand */}
-        <div className="space-y-2">
-          <Label htmlFor="itemSearch">Item (brand-wide search)</Label>
-          <Input
-            id="itemSearch"
-            placeholder="e.g. Cappuccino"
-            value={chosenBrandItem ? chosenBrandItem.name : itemQuery}
-            onChange={(e) => {
-              setChosenBrandItem(null);
-              setItemQuery(e.target.value);
-            }}
-            disabled={!(brandId || restaurantOption?.meta?.brand_id)}
-          />
-          {(brandId || restaurantOption?.meta?.brand_id) && itemQuery.trim().length >= 2 && (
-            <div className="rounded-md border p-2 text-sm dark:bg-gray-800">
-              {loadingBrandItems && <div>Searching…</div>}
-              {!loadingBrandItems && brandItemSuggestions.length === 0 && (
-                <div>No brand matches. You can still create it.</div>
-              )}
-              {!loadingBrandItems &&
-                brandItemSuggestions.map((s, idx) => (
-                  <button
-                    type="button"
-                    key={`${s.name}-${idx}`}
-                    className="block w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded"
-                    onClick={() => {
-                      setChosenBrandItem(s);
-                      setItemQuery(s.name);
-                    }}
-                  >
-                    {s.name} <span className="opacity-60">({s.category})</span>
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
+        
 
-        {/* Category toggle */}
         <div className="space-y-2">
-          <Label>Category</Label>
-          <div className="flex gap-2">
-            {(['FOOD', 'BEVERAGE'] as const).map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`px-3 py-1 rounded border text-sm ${
-                  itemCategory === cat ? 'bg-primary text-white border-primary' : ''
-                }`}
-                onClick={() => setItemCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
+  <Label>Item (brand-wide search)</Label>
+  <SearchableSelect
+    value={
+      chosenBrandItem
+        ? (chosenBrandItem.sample_item_id ?? chosenBrandItem.name)
+        : null
+    }
+    onChange={(opt) => {
+      // user picked a suggestion
+      const meta = opt?.meta as { name: string; category: 'FOOD'|'BEVERAGE'; sample_item_id?: string } | undefined;
+      if (meta) {
+        setChosenBrandItem(meta);
+        setItemQuery(meta.name);          // keep text in sync
+        setItemCategory(meta.category);   // ✅ lock category to the chosen item’s category
+      } else {
+        setChosenBrandItem(null);
+      }
+    }}
+    onTextChange={(text) => {
+      // user is typing; allow create-new flow (unlocks category)
+      setChosenBrandItem(null);
+      setItemQuery(text);
+    }}
+    loadOptions={async (q: string) => {
+      const effectiveBrandId =
+        brandId || (restaurantOption?.meta?.brand_id as string | undefined) || '';
+      if (!effectiveBrandId) return [];
+
+      const rows = await getBrandItemsBySearch(effectiveBrandId, q);
+      return rows.map((r) => ({
+        value: r.name,
+        label: `${r.name} (${r.category})`,
+        meta: r,
+      }));
+    }}
+    placeholder="e.g. Cappuccino"
+    minChars={2}
+    debounceMs={250}
+    previewOptions={true}
+    previewCount={5}
+    disabled={!(brandId || restaurantOption?.meta?.brand_id)}
+  />
+
+  {/* Optional helper + clear when locked */}
+  {categoryLocked ? (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="opacity-70">
+        Category locked to <strong>{chosenBrandItem?.category}</strong> (from selected item).
+      </span>
+      {/* <button
+        type="button"
+        className="underline"
+        onClick={() => {
+          setChosenBrandItem(null); // unlock
+          // keep itemQuery as-is so user can tweak it, or clear if you prefer:
+          setItemQuery('');
+        }}
+      >
+        Clear selection
+      </button> */}
+    </div>
+  ) : (
+    !chosenBrandItem && itemQuery.trim().length >= 2 && (
+      <div className="text-xs opacity-70">
+        Can’t find it? We’ll create “{itemQuery.trim()}” for this restaurant.
+      </div>
+    )
+  )}
+</div>
+
+{/* Category toggle */}
+<div className="space-y-2">
+  <Label>Category</Label>
+  <div className="flex gap-2">
+    {(['FOOD', 'BEVERAGE'] as const).map((cat) => (
+      <button
+        key={cat}
+        type="button"
+        disabled={categoryLocked}                                  // ✅ locked when an item is selected
+        className={`px-3 py-1 rounded border text-sm ${
+          itemCategory === cat ? 'bg-primary text-white border-primary' : ''
+        } ${categoryLocked ? 'opacity-60 cursor-not-allowed' : ''}`}  // subtle disabled styling
+        onClick={() => setItemCategory(cat)}
+      >
+        {cat}
+      </button>
+    ))}
+  </div>
+</div>
+
 
         {/* Single facet (Course or BeverageFamily) */}
         <div className="space-y-2">
           <Label>{itemCategory === 'FOOD' ? 'Course' : 'Beverage Family'} (pick one)</Label>
           <FacetPills
-            facetName={itemCategory === 'FOOD' ? 'Course' : 'BeverageFamily'}
+            facetName={itemCategory === 'FOOD' ? 'Course' : 'Beverages'}
             mode="single"
             valueSingle={singleFacetValue}
             onChangeSingle={setSingleFacetValue}

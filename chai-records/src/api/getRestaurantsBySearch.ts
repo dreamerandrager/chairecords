@@ -2,6 +2,7 @@ import { supabase } from '@/utils/supabase/supabase';
 
 export async function getRestaurantsBySearch(opts: { brandId?: string; q?: string; includeUnverified?: boolean }) {
   const { brandId, q, includeUnverified } = opts;
+  console.log(brandId)
   let query = supabase.from('restaurants')
     .select('id,name,brand_id,is_verified')
     .order('name');

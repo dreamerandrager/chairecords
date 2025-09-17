@@ -42,7 +42,6 @@ function pickImageFromMetadata(metadata: Metadata): string | null {
         candidates.push(entry.trim());
         continue;
       }
-
       if (isRecord(entry)) {
         for (const key of preferredKeys) {
           const value = entry[key];
@@ -50,7 +49,6 @@ function pickImageFromMetadata(metadata: Metadata): string | null {
             candidates.push(value.trim());
           }
         }
-
         const nestedUrl = entry["url"];
         if (typeof nestedUrl === "string" && nestedUrl.trim().length > 0) {
           candidates.push(nestedUrl.trim());
@@ -81,47 +79,44 @@ function pickImageFromGallery(images: RawImage[] | undefined, metadata: Metadata
       }
     }
   }
-
   return pickImageFromMetadata(metadata);
 }
 
+type RpcRow = {
+  item_id: string;             // function returns item_id as the first column
+  restaurant_id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  category: string;            // public.item_category
+  price_cents: number | null;
+  currency: string | null;     // char(3)
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // The RPC also returns single_facets / multi_facets (jsonb), but we don't need them here.
+};
+
 export async function getItemById(id: string): Promise<Item | null> {
-  const { data, error } = await supabase
-    .from("items")
-    .select(`
-      id,
-      restaurant_id,
-      name,
-      slug,
-      description,
-      category,
-      price_cents,
-      currency,
-      is_active,
-      sku,
-      metadata,
-      created_at,
-      updated_at,
-      restaurant:restaurants (
-        id,
-        name
-      ),
-      images:item_images (
-        url,
-        is_primary,
-        sort_order
-      )
-    `)
-    .eq("id", id)
-    .maybeSingle();
+  // 1) core item + consensus facets via RPC (typed table)
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc("get_item_by_id_typed", {
+    p_item_id: id,
+  });
 
-  if (error) throw error;
-  if (!data) return null;
+  if (rpcErr) throw rpcErr;
+  const row = (rpcRows as RpcRow[] | null)?.[0];
+  if (!row) return null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const row = data as any;
-  const metadata = (row.metadata ?? null) as Metadata;
+  // 2) fetch restaurant name + gallery images in parallel
+  const [{ data: rest, error: restErr }, { data: imgs, error: imgErr }] = await Promise.all([
+    supabase.from("restaurants").select("id,name").eq("id", row.restaurant_id).maybeSingle(),
+    supabase.from("item_images").select("url,is_primary,sort_order").eq("item_id", id),
+  ]);
+  if (restErr) throw restErr;
+  if (imgErr) throw imgErr;
 
+  // 3) normalize types
+  const metadata = null as Metadata; // RPC doesn’t include metadata; keep null to preserve Item shape
   let priceCents: number | null = null;
   if (typeof row.price_cents === "number") {
     priceCents = row.price_cents;
@@ -135,23 +130,24 @@ export async function getItemById(id: string): Promise<Item | null> {
       ? row.currency.trim()
       : String(row.currency ?? "ZAR");
   const currency = rawCurrency.toUpperCase();
-  const imageUrl = pickImageFromGallery(row.images as RawImage[] | undefined, metadata);
+
+  const imageUrl = pickImageFromGallery(imgs as RawImage[] | undefined, metadata);
 
   return {
-    id: row.id as string,
-    restaurantId: row.restaurant_id as string,
-    restaurantName: (row.restaurant?.name ?? null) as string | null,
-    name: row.name as string,
-    slug: (row.slug ?? null) as string | null,
-    description: (row.description ?? null) as string | null,
-    category: row.category as string,
+    id: row.item_id, // note: RPC returns item_id
+    restaurantId: row.restaurant_id,
+    restaurantName: (rest?.name ?? null) as string | null,
+    name: row.name,
+    slug: row.slug ?? null,
+    description: row.description ?? null,
+    category: row.category,
     priceCents,
     currency,
     isActive: Boolean(row.is_active),
-    sku: (row.sku ?? null) as string | null,
+    sku: null,                  // not included by RPC; keep null to preserve type
     metadata,
     imageUrl: imageUrl ?? null,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   } satisfies Item;
 }
