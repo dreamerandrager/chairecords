@@ -17,6 +17,7 @@ export function SearchableSelect({
   previewOptions = false,  // NEW: show top results on focus
   previewCount = 5,        // NEW: how many to preview
   onTextChange,  
+  selectedOption = null,   
 }: {
   value: string | null;
   onChange: (next: Option) => void;
@@ -30,6 +31,7 @@ export function SearchableSelect({
   previewOptions?: boolean;
   previewCount?: number;
   onTextChange?: (text: string) => void;
+  selectedOption?: Option | null;
 }) {
   // display/input states
   const [q, setQ] = useState(initialQuery);
@@ -40,6 +42,11 @@ export function SearchableSelect({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef  = useRef<HTMLDivElement>(null);
+
+   // sync chosen with parent (programmatic select/clear)
+  useEffect(() => {
+    setChosen(selectedOption ?? null);
+  }, [selectedOption]);
 
   // close on outside click
   useEffect(() => {

@@ -39,6 +39,10 @@ export default function CreateReviewPage() {
 
   const [restaurantId, setRestaurantId] = useState<string>('');
   const [restaurantOption, setRestaurantOption] = useState<Option | null>(null);
+  // near your other state
+const [restaurantQuery, setRestaurantQuery] = useState('');
+const [creatingRestaurant, setCreatingRestaurant] = useState(false);
+
 
   // Item search
   const [itemQuery, setItemQuery] = useState('');
@@ -102,15 +106,24 @@ const categoryLocked = !!chosenBrandItem; // derived lock
     };
   }, [brandId, restaurantOption, itemQuery]);
 
-  // ---------- guards ----------
-  const canSubmit = useMemo(() => {
-    const haveBrandOrRestaurant = Boolean(brandId || restaurantId);
-    const haveRestaurant = Boolean(restaurantId);
-    const haveItemText = chosenBrandItem || itemQuery.trim().length >= 2;
-    const haveImage = Boolean(file || uploadedUrl);
-    const ratingOk = rating >= 1 && rating <= 5;
-    return !loading && haveBrandOrRestaurant && haveRestaurant && haveItemText && haveImage && ratingOk;
-  }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
+  // // ---------- guards ----------
+  // const canSubmit = useMemo(() => {
+  //   const haveBrandOrRestaurant = Boolean(brandId || restaurantId);
+  //   const haveRestaurant = Boolean(restaurantId);
+  //   const haveItemText = chosenBrandItem || itemQuery.trim().length >= 2;
+  //   const haveImage = Boolean(file || uploadedUrl);
+  //   const ratingOk = rating >= 1 && rating <= 5;
+  //   return !loading && haveBrandOrRestaurant && haveRestaurant && haveItemText && haveImage && ratingOk;
+  // }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
+
+const canSubmit = useMemo(() => {
+  const hasRestaurant = !!restaurantId || restaurantQuery.trim().length >= 2;
+  if (!hasRestaurant) return false;
+  if (!chosenBrandItem && itemQuery.trim().length < 2) return false;
+  if (!file && !uploadedUrl) return false;
+  if (!rating || rating < 1 || rating > 5) return false;
+  return !loading;
+}, [restaurantId, restaurantQuery, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
 
   // ---------- helpers ----------
   async function uploadImageOrGetUrl(itemIdForPath: string) {
@@ -130,79 +143,105 @@ const categoryLocked = !!chosenBrandItem; // derived lock
     return pub.publicUrl;
   }
 
+  async function getOtherBrandId(): Promise<string> {
+  const list = await getBrandsBySearch('other');
+  const other = list.find((b: any) => (b.slug || '').toLowerCase() === 'other');
+  if (!other) throw new Error("Couldn't resolve the 'Other' brand");
+  return other.id as string;
+}
+
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
+  e.preventDefault();
+  if (!canSubmit) return;
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      // auth
-      const { data: auth } = await supabase.auth.getUser();
-      const profileId = auth.user?.id;
-      if (!profileId) throw new Error('Not signed in.');
+  try {
+    // auth
+    const { data: auth } = await supabase.auth.getUser();
+    const profileId = auth.user?.id;
+    if (!profileId) throw new Error('Not signed in.');
 
-      // Derive effective brand id: prefer explicit brand selection,
-      // else use the selected restaurant's brand_id, else 'Other'
-      let effectiveBrandId = brandId;
-      if (!effectiveBrandId && restaurantOption?.meta?.brand_id) {
-        effectiveBrandId = restaurantOption.meta.brand_id as string;
-      }
-
-      // Resolve/create item with descriptors (RPC)
-      const itemName = (chosenBrandItem?.name || itemQuery).trim();
-      // before (had singleFacet/multiFacet) → after (just core fields)
-      const finalItemId = await resolveOrCreateItemForRestaurant({
-        brandId: effectiveBrandId,
-        restaurantId,
-        name: itemName,
-        category: itemCategory, // 'FOOD' | 'BEVERAGE'
-      });
-
-
-      // Upload image
-      const imageUrl = await uploadImageOrGetUrl(finalItemId);
-
-      // Create review
-      const reviewId = await createReview({
-        itemId: finalItemId,
-        rating,
-        body: body || null,
-        profileId,
-      });
-
-      await upsertReviewFacets({
-        reviewId,
-        singleFacet: singleFacetValue
-          ? {
-              name: itemCategory === 'FOOD' ? 'Course' : 'BeverageFamily',
-              value: singleFacetValue,
-            }
-          : null,
-        multiFacet: {
-          name: 'Attribute',
-          values: multiFacetValues.slice(0, 3),
-        },
-      });
-
-      // Attach image to item with provenance
-      await attachItemImage({
-        itemId: finalItemId,
-        imageUrl,
-        sourceReviewId: reviewId,
-        sortOrder: 0,
-        isPrimary: false,
-      });
-
-      router.push(`/reviews/${profileId}`);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message ?? 'Something went wrong.');
-    } finally {
-      setLoading(false);
+    // --- BRAND: explicit → restaurant.brand_id → "Other"
+    let effectiveBrandId = brandId as string | undefined;
+    if (!effectiveBrandId && restaurantOption?.meta?.brand_id) {
+      effectiveBrandId = restaurantOption.meta.brand_id as string;
     }
+    if (!effectiveBrandId) {
+      effectiveBrandId = await getOtherBrandId();
+    }
+
+    // --- RESTAURANT: select existing OR create unverified (on submit)
+    let finalRestaurantId = restaurantId as string | undefined;
+    if (!finalRestaurantId) {
+      const typed = restaurantQuery.trim();
+      if (typed.length < 2) {
+        throw new Error('Please select a restaurant or type at least 2 characters to create one.');
+      }
+      // create unverified (brand-scoped)
+      const newId = await createUnverifiedRestaurant(typed, effectiveBrandId);
+      finalRestaurantId = newId;
+
+      // reflect selection in UI state (optional, for UX)
+      const opt = { value: newId, label: typed, meta: { is_verified: false, brand_id: effectiveBrandId } };
+      setRestaurantId(newId);
+      setRestaurantOption(opt);
+      setRestaurantQuery('');
+    }
+
+    // --- ITEM: resolve/create (facet-free RPC)
+    const itemName = (chosenBrandItem?.name || itemQuery).trim();
+    const finalItemId = await resolveOrCreateItemForRestaurant({
+      brandId: effectiveBrandId,
+      restaurantId: finalRestaurantId!,
+      name: itemName,
+      category: itemCategory, // 'FOOD' | 'BEVERAGE'
+    });
+
+    // --- Upload image
+    const imageUrl = await uploadImageOrGetUrl(finalItemId);
+
+    // --- Create review
+    const reviewId = await createReview({
+      itemId: finalItemId,
+      rating,
+      body: body || null,
+      profileId,
+    });
+
+    // --- Attach review facets (single + multi)
+    await upsertReviewFacets({
+      reviewId,
+      singleFacet: singleFacetValue
+        ? {
+            name: itemCategory === 'FOOD' ? 'Course' : 'BeverageFamily',
+            value: singleFacetValue,
+          }
+        : null,
+      multiFacet: {
+        name: 'Attribute',
+        values: multiFacetValues.slice(0, 3),
+      },
+    });
+
+    // --- Attach image to item with provenance
+    await attachItemImage({
+      itemId: finalItemId,
+      imageUrl,
+      sourceReviewId: reviewId,
+      sortOrder: 0,
+      isPrimary: false,
+    });
+
+    router.push(`/reviews/${profileId}`);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.message ?? 'Something went wrong.');
+  } finally {
+    setLoading(false);
   }
+}
 
   // ---------- UI ----------
   return (
@@ -239,75 +278,64 @@ const categoryLocked = !!chosenBrandItem; // derived lock
               return rows.map((b) => ({ value: b.id, label: b.name, meta: b }));
             }}
             placeholder="Search brand…"
+            // previewOptions={true}
+            // previewCount={10}
           />
         </div>
 
-        {/* Restaurant (searchable; filtered by brand if selected; verified only) */}
         <div className="space-y-1">
-          <Label>Restaurant</Label>
-          <SearchableSelect
-            value={restaurantId || null}
-            onChange={(opt: Option) => {
-              setRestaurantOption(opt);
-              setRestaurantId(opt?.value || '');
-              setChosenBrandItem(null);
-            }}
-            loadOptions={async (q: string) => {
-              const rows: Restaurant[] = await getRestaurantsBySearch({
-                brandId: brandId || undefined,
-                q,
-                includeUnverified: false,
-              });
-              return rows.map((r) => ({
-                value: r.id,
-                label: r.name,
-                meta: r,
-              }));
-            }}
-            placeholder={brandId ? 'Search this brand’s restaurants…' : 'Search restaurants…'}
-            previewOptions={true}
-          />
+  <Label>Restaurant</Label>
+  <SearchableSelect
+    value={restaurantId || null}
+    selectedOption={restaurantOption}
+    onChange={(opt: Option) => {
+      setRestaurantOption(opt || null);
+      setRestaurantId(opt?.value || '');
+      setChosenBrandItem(null);
+      // lock in the label; also clear query so helper hides
+      setRestaurantQuery('');
+    }}
+    onTextChange={(text) => {
+      // typing = no selection yet
+      if (restaurantId) setRestaurantId('');
+      if (restaurantOption) setRestaurantOption(null);
+      setChosenBrandItem(null);
+      setRestaurantQuery(text);
+    }}
+    loadOptions={async (q: string) => {
+      const rows: Restaurant[] = await getRestaurantsBySearch({
+        brandId: brandId || undefined,
+        q,
+        includeUnverified: true, // keep public search clean
+      });
+      return rows.map((r) => ({
+        value: r.id,
+        label: r.name,
+        meta: r,
+      }));
+    }}
+    placeholder={brandId ? 'Search this brand’s restaurants…' : 'Search restaurants…'}
+    previewOptions
+    previewCount={5}
+  />
 
-          {/* Add new restaurant inline */}
-          <div className="text-xs opacity-80">
-            Can’t find your restaurant?{' '}
-            <button
-              type="button"
-              className="underline"
-              onClick={async () => {
-                const name = prompt('Restaurant name');
-                if (!name) return;
-                try {
-                  const newId = await createUnverifiedRestaurant(name, brandId || undefined);
-                  // select it immediately
-                  setRestaurantId(newId);
-                  setRestaurantOption({ value: newId, label: name, meta: { is_verified: false, brand_id: brandId || null } });
-                  // if brand not chosen, optionally set to Other (try to fetch it quickly)
-                  if (!brandId) {
-                    try {
-                      const others = (await getBrandsBySearch('other')) as any[];
-                      const other = others.find((b) => (b.slug || '').toLowerCase() === 'other');
-                      if (other) {
-                        setBrandId(other.id);
-                        setBrandOption({ value: other.id, label: other.name, meta: other });
-                      }
-                    } catch {}
-                  }
-                  alert('Added! It will appear publicly once verified.');
-                } catch (e: any) {
-                  alert(e?.message ?? 'Failed to add restaurant');
-                }
-              }}
-            >
-              Add it into our system
-            </button>
-          </div>
+  {/* “Can’t find it?” helper — now purely informational; creation happens on submit */}
+{!restaurantId && restaurantQuery.trim().length >= 2 && (
+  <div className="text-xs opacity-80">
+    Can’t find it? We’ll create “<strong>{restaurantQuery.trim()}</strong>” when you submit,
+    and our admins will verify it.
+  </div>
+)}
 
-          {/* If selected restaurant is unverified, show a hint */}
-          {restaurantOption?.meta?.is_verified === false && (
-            <div className="text-xs text-amber-600">Pending verification — visible to you now, public later.</div>
-          )}
-        </div>
+
+  {/* If selected restaurant is unverified, show a hint */}
+  {restaurantOption?.meta?.is_verified === false && (
+    <div className="text-xs text-amber-600">
+      Pending verification — visible to you now, public later.
+    </div>
+  )}
+</div>
+
 
         
 
@@ -343,7 +371,7 @@ const categoryLocked = !!chosenBrandItem; // derived lock
       const rows = await getBrandItemsBySearch(effectiveBrandId, q);
       return rows.map((r) => ({
         value: r.name,
-        label: `${r.name} (${r.category})`,
+        label: `${r.name}`,
         meta: r,
       }));
     }}
@@ -376,7 +404,7 @@ const categoryLocked = !!chosenBrandItem; // derived lock
   ) : (
     !chosenBrandItem && itemQuery.trim().length >= 2 && (
       <div className="text-xs opacity-70">
-        Can’t find it? We’ll create “{itemQuery.trim()}” for this restaurant.
+        Can’t find it? We’ll create “<strong>{itemQuery.trim()}</strong>” for this restaurant.
       </div>
     )
   )}
