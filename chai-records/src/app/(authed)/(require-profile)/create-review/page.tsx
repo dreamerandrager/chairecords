@@ -40,10 +40,8 @@ export default function CreateReviewPage() {
 
   const [restaurantId, setRestaurantId] = useState<string>('');
   const [restaurantOption, setRestaurantOption] = useState<Option | null>(null);
-  // near your other state
-const [restaurantQuery, setRestaurantQuery] = useState('');
-const [creatingRestaurant, setCreatingRestaurant] = useState(false);
-const [customAttributes, setCustomAttributes] = useState<string[]>([]);
+  const [restaurantQuery, setRestaurantQuery] = useState('');
+  const [customAttributes, setCustomAttributes] = useState<string[]>([]);
 
 
   // Item search
@@ -66,7 +64,7 @@ const [customAttributes, setCustomAttributes] = useState<string[]>([]);
   const [multiFacetValues, setMultiFacetValues] = useState<string[]>([]);        // Attribute (<=3)
 
   // somewhere near your other state
-const categoryLocked = !!chosenBrandItem; // derived lock
+  const categoryLocked = !!chosenBrandItem; // derived lock
 
 
   // If the user picks a suggested brand item, carry its category through
@@ -118,14 +116,28 @@ const categoryLocked = !!chosenBrandItem; // derived lock
   //   return !loading && haveBrandOrRestaurant && haveRestaurant && haveItemText && haveImage && ratingOk;
   // }, [brandId, restaurantId, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
 
-const canSubmit = useMemo(() => {
-  const hasRestaurant = !!restaurantId || restaurantQuery.trim().length >= 2;
-  if (!hasRestaurant) return false;
-  if (!chosenBrandItem && itemQuery.trim().length < 2) return false;
-  if (!file && !uploadedUrl) return false;
-  if (!rating || rating < 1 || rating > 5) return false;
-  return !loading;
-}, [restaurantId, restaurantQuery, chosenBrandItem, itemQuery, file, uploadedUrl, rating, loading]);
+  const canSubmit = useMemo(() => {
+    if (loading) return false;
+
+    const typedRestaurant = restaurantQuery.trim();
+    const typedItem = itemQuery.trim();
+
+    const hasRestaurant = Boolean(restaurantId || typedRestaurant.length >= 2);
+    const hasItem = Boolean(chosenBrandItem || typedItem.length >= 2);
+    const hasImage = Boolean(file || uploadedUrl);
+    const ratingOk = rating >= 1 && rating <= 5;
+
+    return hasRestaurant && hasItem && hasImage && ratingOk;
+  }, [
+    loading,
+    restaurantId,
+    restaurantQuery,
+    chosenBrandItem,
+    itemQuery,
+    file,
+    uploadedUrl,
+    rating,
+  ]);
 
   // ---------- helpers ----------
   async function uploadImageOrGetUrl(itemIdForPath: string) {
@@ -146,21 +158,21 @@ const canSubmit = useMemo(() => {
   }
 
   async function getOtherBrandId(): Promise<string> {
-  const list = await getBrandsBySearch('other');
-   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const other = list.find((b: any) => (b.slug || '').toLowerCase() === 'other');
-  if (!other) throw new Error("Couldn't resolve the 'Other' brand");
-  return other.id as string;
-}
+    const list = await getBrandsBySearch('other');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const other = list.find((b: any) => (b.slug || '').toLowerCase() === 'other');
+    if (!other) throw new Error("Couldn't resolve the 'Other' brand");
+    return other.id as string;
+  }
 
   async function onSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  if (!canSubmit) return;
+    e.preventDefault();
+    if (!canSubmit) return;
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
+    try {
     // auth
     const { data: auth } = await supabase.auth.getUser();
     const profileId = auth.user?.id;
@@ -214,16 +226,16 @@ const canSubmit = useMemo(() => {
     });
 
     if (customAttributes.length > 0) {
-  // ensure they exist under facet_id=4
-  for (const val of customAttributes) {
-    try {
-      await resolveOrCreateAttributeValue(val);
-    } catch (e) {
-      // non-fatal: if exists already, the RPC returns existing id anyway
-      console.warn('resolveOrCreateAttributeValue failed for', val, e);
+      // ensure they exist under facet_id=4
+      for (const val of customAttributes) {
+        try {
+          await resolveOrCreateAttributeValue(val);
+        } catch (e) {
+          // non-fatal: if exists already, the RPC returns existing id anyway
+          console.warn('resolveOrCreateAttributeValue failed for', val, e);
+        }
+      }
     }
-  }
-}
 
     // --- Attach review facets (single + multi)
     await upsertReviewFacets({
@@ -251,13 +263,13 @@ const canSubmit = useMemo(() => {
 
     router.push(`/reviews/${profileId}`);
      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (err: any) {
+    } catch (err: any) {
     console.error(err);
     setError(err?.message ?? 'Something went wrong.');
-  } finally {
-    setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   // ---------- UI ----------
   return (
@@ -396,7 +408,8 @@ const canSubmit = useMemo(() => {
     debounceMs={250}
     previewOptions={true}
     previewCount={5}
-    disabled={!(brandId || restaurantOption?.meta?.brand_id)}
+    // Allow typing even when no brand is selected so users can still create
+    // an item; brand fallback logic is handled during submission.
   />
 
   {/* Optional helper + clear when locked */}
