@@ -16,7 +16,7 @@ import { Loader } from "@/customComponents/loader/loader";
 import { getItemById } from "@/api/getItemById";
 import type { Item } from "@/types/item";
 import { cn } from "@/lib/utils";
-import { FacetPills } from "@/customComponents/attributes/facetPills";
+import { ViewFacetPills } from "@/customComponents/attributes/viewFacetPills";
 
 type ItemDetailsCardProps = {
   itemId: string;
@@ -45,7 +45,6 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function DetailGrid({ items }: { items: DetailItem[] }) {
   if (items.length === 0) return null;
-
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       {items.map((item) => (
@@ -70,10 +69,9 @@ function formatCategory(value: string | null): string {
 
 function formatPrice(item: Item): string | null {
   if (item.priceCents === null) return null;
-
   const amount = item.priceCents / 100;
-  const currency = item.currency && item.currency.trim().length > 0 ? item.currency : "ZAR";
-
+  const currency =
+    item.currency && item.currency.trim().length > 0 ? item.currency : "ZAR";
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -89,69 +87,6 @@ function formatDate(value: string): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleString();
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function titleCase(value: string): string {
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-const METADATA_KEYS_TO_SKIP = new Set([
-  "imageUrl",
-  "image_url",
-  "photoUrl",
-  "photo_url",
-  "thumbnail",
-  "thumbnailUrl",
-  "thumbnail_url",
-  "images",
-]);
-
-function extractMetadata(metadata: Item["metadata"]): DetailItem[] {
-  if (!metadata) return [];
-
-  const entries: DetailItem[] = [];
-
-  for (const [key, rawValue] of Object.entries(metadata)) {
-    if (METADATA_KEYS_TO_SKIP.has(key)) continue;
-    if (rawValue === undefined || rawValue === null) continue;
-
-    let display: ReactNode | null = null;
-
-    if (typeof rawValue === "string") {
-      const trimmed = rawValue.trim();
-      if (trimmed.length > 0) display = trimmed;
-    } else if (typeof rawValue === "number") {
-      display = rawValue;
-    } else if (typeof rawValue === "boolean") {
-      display = rawValue ? "Yes" : "No";
-    } else if (Array.isArray(rawValue)) {
-      const values = rawValue.filter((value) => typeof value === "string" && value.trim().length > 0);
-      if (values.length > 0) display = values.map((value) => value.trim()).join(", ");
-    } else if (isRecord(rawValue)) {
-      const simpleValues = Object.entries(rawValue)
-        .filter(([, value]) => typeof value === "string")
-        .map(([, value]) => (value as string).trim())
-        .filter((value) => value.length > 0);
-      if (simpleValues.length > 0) display = simpleValues.join(", ");
-    }
-
-    if (display) {
-      entries.push({
-        label: titleCase(key),
-        value: display,
-      });
-    }
-  }
-
-  return entries.slice(0, 6);
 }
 
 function ItemImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
@@ -220,10 +155,16 @@ export function ItemDetailsCard({ itemId, initialItem = null }: ItemDetailsCardP
     };
   }, [itemId, initialItem]);
 
-  const metadataDetails = useMemo(() => extractMetadata(item?.metadata ?? null), [item?.metadata]);
-  const consensus = item?.consensusFacets ?? null;
-  const hasSingleFacet = Boolean(consensus?.singleFacet);
-  const hasMultiFacets = (consensus?.multiFacets?.length ?? 0) > 0;
+  // pull consensus facets (already computed by the API/RPC)
+  const singleFacet = item?.consensusFacets?.singleFacet ?? null;
+  const multiFacet =
+    item?.consensusFacets?.multiFacets && item.consensusFacets.multiFacets.length > 0
+      ? {
+          name: item.consensusFacets.multiFacets[0].name,
+          values: item.consensusFacets.multiFacets[0].values,
+        }
+      : null;
+  const hasAnyFacets = Boolean(singleFacet) || Boolean(multiFacet?.values?.length);
 
   if (loading) {
     return (
@@ -234,19 +175,11 @@ export function ItemDetailsCard({ itemId, initialItem = null }: ItemDetailsCardP
   }
 
   if (error) {
-    return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        {error}
-      </Card>
-    );
+    return <Card className="p-6 text-sm text-muted-foreground">{error}</Card>;
   }
 
   if (!item) {
-    return (
-      <Card className="p-6 text-sm text-muted-foreground">
-        Item not found.
-      </Card>
-    );
+    return <Card className="p-6 text-sm text-muted-foreground">Item not found.</Card>;
   }
 
   const price = formatPrice(item);
@@ -257,110 +190,66 @@ export function ItemDetailsCard({ itemId, initialItem = null }: ItemDetailsCardP
     <Card className="overflow-hidden">
       <ItemImage imageUrl={item.imageUrl} name={item.name} />
 
-      <CardHeader className="space-y-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
+      {/* Tight header/content spacing */}
+      <CardHeader className="p-6 pb-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          {/* Left: title/meta */}
+          <div className="space-y-2 flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-xs uppercase text-muted-foreground">
               <span className="rounded-full bg-secondary/40 px-2 py-1 font-semibold tracking-wide text-secondary-foreground">
                 {formatCategory(item.category)}
               </span>
-              {item.restaurantName ? <span>Served at {item.restaurantName}</span> : null}
+              {item.restaurantName ? <span className="truncate">Served at {item.restaurantName}</span> : null}
             </div>
-            <CardTitle className="text-2xl font-semibold leading-tight">{item.name}</CardTitle>
+            <CardTitle className="text-2xl font-semibold leading-tight break-words">{item.name}</CardTitle>
             <CardDescription className="text-sm text-muted-foreground">
               {item.description ?? "No description has been added for this item yet."}
             </CardDescription>
           </div>
-          <StatusBadge active={item.isActive} />
+
+          {/* Right: status (won’t stretch) */}
+          <div className="shrink-0 self-start sm:ml-4">
+            <StatusBadge active={item.isActive} />
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
+      <CardContent className="p-6 pt-0 space-y-4">
+        {/* Compact facets row */}
+        {hasAnyFacets && (
+          <ViewFacetPills singleFacet={singleFacet} multiFacet={multiFacet} className="mt-2" />
+        )}
+
         <DetailGrid
           items={[
-            {
-              label: "Price",
-              value: price ?? "Price not provided",
-            },
-            {
-              label: "Currency",
-              value: item.currency,
-            },
-            {
-              label: "SKU",
-              value: item.sku ?? "Not provided",
-            },
-            {
-              label: "Slug",
-              value: item.slug ?? "Not provided",
-            },
+            { label: "Price", value: price ?? "Price not provided" },
+            { label: "Currency", value: item.currency },
+            { label: "SKU", value: item.sku ?? "Not provided" },
+            { label: "Slug", value: item.slug ?? "Not provided" },
             {
               label: "Restaurant ID",
-              value: <code className="rounded bg-muted px-2 py-1 text-xs">{item.restaurantId}</code>,
+              value: <code className="rounded bg-muted px-2 py-1 text-xs break-all">{item.restaurantId}</code>,
             },
-            {
-              label: "Item ID",
-              value: <code className="rounded bg-muted px-2 py-1 text-xs">{item.id}</code>,
-            },
+            { label: "Item ID", value: <code className="rounded bg-muted px-2 py-1 text-xs break-all">{item.id}</code> },
           ]}
         />
-
-        {metadataDetails.length > 0 ? (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Additional Details</h3>
-            <DetailGrid items={metadataDetails} />
-          </div>
-        ) : null}
-
-        {(hasSingleFacet || hasMultiFacets) && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Community highlights
-            </h3>
-
-            {hasSingleFacet && consensus?.singleFacet ? (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
-                  {consensus.singleFacet.name}
-                </h4>
-                <FacetPills
-                  facetName={consensus.singleFacet.name}
-                  mode="single"
-                  valueSingle={consensus.singleFacet.value}
-                  readOnly
-                />
-              </div>
-            ) : null}
-
-            {hasMultiFacets
-              ? consensus?.multiFacets.map((facet) => (
-                  <div key={facet.name} className="space-y-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
-                      {facet.name}
-                    </h4>
-                    <FacetPills facetName={facet.name} mode="multi" valueMulti={facet.values} readOnly />
-                  </div>
-                ))
-              : null}
-          </div>
-        )}
       </CardContent>
 
-      <CardFooter className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <CardFooter className="p-6 pt-0 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          {createdDisplay ? (
+          {createdDisplay && (
             <span>
               Created <time dateTime={item.createdAt}>{createdDisplay}</time>
             </span>
-          ) : null}
-          {updatedDisplay ? (
+          )}
+          {updatedDisplay && (
             <span>
               Updated <time dateTime={item.updatedAt}>{updatedDisplay}</time>
             </span>
-          ) : null}
+          )}
         </div>
 
-        <Button asChild size="lg">
+        <Button asChild size="lg" className="self-stretch sm:self-auto sm:w-auto">
           <Link href={`/restaurants/${item.restaurantId}`}>Go to restaurant</Link>
         </Button>
       </CardFooter>

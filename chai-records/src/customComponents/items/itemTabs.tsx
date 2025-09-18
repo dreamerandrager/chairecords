@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ItemReviewsSection } from './itemReviewsSection';
 
 type TabKey = 'reviews' | 'photos';
 
@@ -32,10 +33,10 @@ export function ItemTabs({ itemId, itemName }: { itemId: string; itemName: strin
       </nav>
 
       {active === 'reviews' ? (
-        <Card className="p-6 text-sm text-muted-foreground" data-item-id={itemId}>
-          Reviews for {itemName} will appear here soon. We&apos;re gathering more tasting notes before sharing them on this
-          page.
-        </Card>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Recent reviews</h2>
+        <ItemReviewsSection itemId={itemId} itemName={itemName} />
+        </div>
       ) : (
         <Card className="p-6 text-sm text-muted-foreground" data-item-id={itemId}>
           A photo gallery for {itemName} is on the way. Add images to your reviews to help fill this space.

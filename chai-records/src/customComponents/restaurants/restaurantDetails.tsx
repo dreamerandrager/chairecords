@@ -71,7 +71,11 @@ export function RestaurantDetails({ restaurant }: { restaurant: Restaurant }) {
   const address = formatAddress(restaurant);
   const latitude = formatCoordinate(restaurant.latitude);
   const longitude = formatCoordinate(restaurant.longitude);
-  const mapUrl = latitude && longitude ? `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}` : null;
+  const mapUrl =
+  latitude && longitude
+    ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+    : null;
+
   const createdDisplay = formatDate(restaurant.createdAt);
   const updatedDisplay = formatDate(restaurant.updatedAt);
 
