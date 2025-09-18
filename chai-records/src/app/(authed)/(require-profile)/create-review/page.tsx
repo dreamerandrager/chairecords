@@ -436,7 +436,7 @@ const canSubmit = useMemo(() => {
         type="button"
         disabled={categoryLocked}                                  // ✅ locked when an item is selected
         className={`px-3 py-1 rounded border text-sm ${
-          itemCategory === cat ? 'bg-primary text-black border-primary' : ''
+          itemCategory === cat ? 'bg-primary text-white dark:text-black border-primary' : ''
         } ${categoryLocked ? 'opacity-60 cursor-not-allowed' : ''}`}  // subtle disabled styling
         onClick={() => setItemCategory(cat)}
       >
