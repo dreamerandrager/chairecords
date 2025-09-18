@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chai Records
 
-## Getting Started
+Chai Records is an internal dashboard for curating South Africa's bubble tea scene. Administrators can browse restaurants, drill into individual menu items, and celebrate the community's tasting notes — all in one tidy Next.js workspace.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then visit http://localhost:3000 to explore the dashboard. Supabase credentials are required for live data; without them, stubbed loading states will still preview the interface.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What's new in v1.2.0
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Review gallery with deep links.** Browse feedback through a responsive card grid that loads reviews on demand, surfaces star ratings, and opens a detail modal with quick actions to jump straight to the referenced item, restaurant, or reviewer profile.【F:chai-records/src/customComponents/reviews/reviewsSection.tsx†L1-L69】【F:chai-records/src/customComponents/reviews/reviewCard.tsx†L1-L96】【F:chai-records/src/customComponents/reviews/reviewModal.tsx†L1-L146】
+- **Richer item spotlight.** The item detail card now fetches live data, highlights consensus attributes, formats pricing automatically, and keeps critical metadata — such as SKU, slug, and timestamps — within easy reach alongside a direct restaurant link.【F:chai-records/src/customComponents/items/itemDetailsCard.tsx†L1-L213】
+- **Smarter attributes.** Attribute pills distinguish consensus highlights from supporting tags, collapse when space is tight, and even let administrators add custom descriptors on the fly when curating multi-select facets.【F:chai-records/src/customComponents/attributes/viewFacetPills.tsx†L1-L63】【F:chai-records/src/customComponents/attributes/facetPills.tsx†L1-L160】
+- **Restaurant profiles with maps.** Restaurant detail views bundle contact info, address formatting, status badges, and a one-click Google Maps launch so teams can validate locations without leaving the dashboard.【F:chai-records/src/customComponents/restaurants/restaurantDetails.tsx†L1-L143】
 
-## Learn More
+## Key areas to explore
 
-To learn more about Next.js, take a look at the following resources:
+- **Item management.** Inspect menu entries, evaluate their activation status, and cross-check the restaurant relationship from the same screen.【F:chai-records/src/customComponents/items/itemDetailsCard.tsx†L123-L213】
+- **Community insights.** Capture how guests describe their experience, including optional photos, consensus facets, and timestamps per review.【F:chai-records/src/customComponents/reviews/reviewModal.tsx†L37-L146】
+- **Location operations.** Confirm contact details, map links, and brand associations for every storefront at a glance.【F:chai-records/src/customComponents/restaurants/restaurantDetails.tsx†L59-L143】
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tech stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Next.js App Router
+- React 19 with server components
+- Tailwind CSS v4
+- Supabase for authentication and data access
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Happy sipping!
