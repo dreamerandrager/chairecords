@@ -21,6 +21,7 @@ import { resolveOrCreateItemForRestaurant } from '@/api/resolveOrCreateItemForRe
 import { createReview } from '@/api/createReview';
 import { upsertReviewFacets } from '@/api/upsertReviewFacets';
 import { attachItemImage } from '@/api/attachItemImage';
+import { resolveOrCreateAttributeValue } from '@/api/resolveOrCreateFacet';
 
 const STORAGE_BUCKET = 'item-images';
 
@@ -42,6 +43,7 @@ export default function CreateReviewPage() {
   // near your other state
 const [restaurantQuery, setRestaurantQuery] = useState('');
 const [creatingRestaurant, setCreatingRestaurant] = useState(false);
+const [customAttributes, setCustomAttributes] = useState<string[]>([]);
 
 
   // Item search
@@ -210,6 +212,18 @@ const canSubmit = useMemo(() => {
       body: body || null,
       profileId,
     });
+
+    if (customAttributes.length > 0) {
+  // ensure they exist under facet_id=4
+  for (const val of customAttributes) {
+    try {
+      await resolveOrCreateAttributeValue(val);
+    } catch (e) {
+      // non-fatal: if exists already, the RPC returns existing id anyway
+      console.warn('resolveOrCreateAttributeValue failed for', val, e);
+    }
+  }
+}
 
     // --- Attach review facets (single + multi)
     await upsertReviewFacets({
@@ -422,7 +436,7 @@ const canSubmit = useMemo(() => {
         type="button"
         disabled={categoryLocked}                                  // ✅ locked when an item is selected
         className={`px-3 py-1 rounded border text-sm ${
-          itemCategory === cat ? 'bg-primary text-white border-primary' : ''
+          itemCategory === cat ? 'bg-primary text-black border-primary' : ''
         } ${categoryLocked ? 'opacity-60 cursor-not-allowed' : ''}`}  // subtle disabled styling
         onClick={() => setItemCategory(cat)}
       >
@@ -446,13 +460,16 @@ const canSubmit = useMemo(() => {
 
         {/* Multi facet (Attributes, max 3) */}
         <div className="space-y-2">
-          <Label>Attributes (up to 3)</Label>
+          <Label>Attributes (Select up to 3)</Label>
           <FacetPills
             facetName="Attribute"
             mode="multi"
             maxMulti={3}
             valueMulti={multiFacetValues}
             onChangeMulti={setMultiFacetValues}
+            collapsible={true}            // ⬅️ collapsed by default, “Select attributes ▾”
+            allowUserCreate={true}        // ⬅️ show “➕ Add your own”
+            onUserAddedChange={(vals) => setCustomAttributes(vals)}
           />
         </div>
 
