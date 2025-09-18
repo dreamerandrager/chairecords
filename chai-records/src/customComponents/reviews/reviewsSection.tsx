@@ -65,6 +65,8 @@ export function ReviewsSection({
                   body={r.body}
                   photoUrl={r.photoUrl ?? undefined}
                   createdAt={r.createdAt}
+                  singleFacet={r.singleFacet}
+                  multiFacet={r.multiFacet}
                 />
               ))}
             </div>

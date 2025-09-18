@@ -9,5 +9,7 @@ export type Review = {
   restaurantId: string;
   restaurantName: string;
   photoUrl: string | null;
+  singleFacet?: { name: string; value: string } | null;
+  multiFacet?: { name: string; values: string[] } | null;
 };
 

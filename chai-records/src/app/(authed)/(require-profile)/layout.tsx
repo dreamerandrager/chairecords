@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, useLayoutEffect, useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft } from 'lucide-react';
+import { useNavStack } from '@/hooks/useNavStack';
 
 export default function WithProfileLayout({
   children,
@@ -18,8 +19,6 @@ export default function WithProfileLayout({
   const router = useRouter();
   const headerRef = useRef<HTMLDivElement | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
-
-  const [canGoBack, setCanGoBack] = useState(false);
 
   const pageHeading = useMemo(() => {
     const first = (pathname ?? '')
@@ -39,19 +38,7 @@ export default function WithProfileLayout({
     return p === '/create-review';
   }, [pathname]);
 
-  // Detect if we can go back (best-effort using browser history length)
-  useEffect(() => {
-    // history.length > 1 usually means there's something to go back to
-    setCanGoBack(typeof window !== 'undefined' && window.history.length > 1);
-  }, [pathname]);
-
-  const handleBack = () => {
-    if (canGoBack) {
-      router.back();
-    } else {
-      router.push('/'); // fallback
-    }
-  };
+  const { canGoBack, goBack } = useNavStack();
 
   // Measure header height and set CSS var on <main>
   useLayoutEffect(() => {
@@ -85,7 +72,7 @@ export default function WithProfileLayout({
                 <Button
                   variant="ghost"
                   className="h-7 px-2"
-                  onClick={handleBack}
+                  onClick={goBack}
                   aria-label="Back"
                   title="Back"
                 >

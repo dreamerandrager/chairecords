@@ -1,3 +1,4 @@
+// customComponents/reviews/reviewCard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -7,16 +8,18 @@ import { ReviewModal } from './reviewModal';
 
 export type ReviewCardProps = {
   id: string;
-  itemId: string; // Added to support ReviewModal navigation to the item page.
-  profileId: string;            // ✅ required now
+  itemId: string;
+  profileId: string;
   itemName: string;
   restaurantName: string;
   restaurantId: string;
-  rating: number;               // 1..5
+  rating: number;
   body?: string | null;
   photoUrl?: string | null;
   createdAt: string | Date;
   className?: string;
+  singleFacet?: { name: string; value: string } | null;
+  multiFacet?: { name: string; values: string[] } | null;
 };
 
 function Stars({ value }: { value: number }) {
@@ -29,19 +32,13 @@ function Stars({ value }: { value: number }) {
   );
 }
 
-export function ReviewCard({
-  id,
-  itemId,
-  profileId,
-  itemName,
-  restaurantName,
-  restaurantId,
-  rating,
-  body,
-  photoUrl,
-  createdAt,
-  className,
-}: ReviewCardProps) {
+export function ReviewCard(props: ReviewCardProps) {
+  const {
+    id, itemId, profileId, itemName, restaurantName, restaurantId,
+    rating, body, photoUrl, createdAt, className,
+    singleFacet, multiFacet,
+  } = props;
+
   const [open, setOpen] = useState(false);
   const created = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
 
@@ -59,7 +56,6 @@ export function ReviewCard({
           className
         )}
       >
-        {/* Background */}
         <div className="absolute inset-0 z-0">
           <div className="absolute -inset-4">
             {photoUrl ? (
@@ -83,21 +79,14 @@ export function ReviewCard({
           </div>
         </div>
 
-        {/* Content overlay */}
         <div className="relative z-10 grid h-full grid-rows-[auto_1fr_auto] p-3 sm:p-4">
-          {/* Top */}
           <div>
             <div className="text-base font-semibold leading-tight line-clamp-1">{itemName}</div>
             <div className="text-xs text-muted-foreground line-clamp-1">{restaurantName}</div>
           </div>
-
-          {/* Middle */}
           <div className="mt-2 space-y-1">
             <Stars value={rating} />
-            {/* Body preview removed as requested */}
           </div>
-
-          {/* Bottom */}
           <div className="mt-2 flex items-end justify-end text-xs text-muted-foreground">
             {created ? <time dateTime={created.toISOString()}>{created.toLocaleDateString()}</time> : null}
           </div>
@@ -117,6 +106,8 @@ export function ReviewCard({
           body={body ?? null}
           photoUrl={photoUrl ?? null}
           createdAt={created}
+          singleFacet={singleFacet ?? null}
+          multiFacet={multiFacet ?? null}
         />
       )}
     </>
