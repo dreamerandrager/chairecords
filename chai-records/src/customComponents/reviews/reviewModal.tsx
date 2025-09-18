@@ -1,26 +1,32 @@
+// customComponents/reviews/reviewModal.tsx
 'use client';
 
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/utils/supabase/supabase';
 import { cn } from '@/lib/utils';
 import { Utensils, Building2, User as UserIcon, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { FacetPills } from '@/customComponents/attributes/facetPills';
+import { ViewFacetPills } from '../attributes/viewFacetPills';
 
 type Profile = { display_name: string; avatar_url: string | null };
 
 type Props = {
   onClose: () => void;
   id: string;
+  itemId: string;
   profileId: string;
   itemName: string;
   restaurantName: string;
-  restaurantId: string;  
+  restaurantId: string;
   rating: number;
   body: string | null;
   photoUrl: string | null;
   createdAt: Date;
+  singleFacet?: { name: string; value: string } | null;
+  multiFacet?: { name: string; values: string[] } | null;
 };
 
 function Stars({ value }: { value: number }) {
@@ -34,9 +40,15 @@ function Stars({ value }: { value: number }) {
 }
 
 export function ReviewModal(props: Props) {
-  const { onClose, profileId, itemName, restaurantName, restaurantId, rating, body, photoUrl, createdAt } = props;
+  const {
+    onClose, itemId, profileId, itemName, restaurantName, restaurantId,
+    rating, body, photoUrl, createdAt,
+    singleFacet, multiFacet,
+  } = props;
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const router = useRouter();
+
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -51,13 +63,13 @@ export function ReviewModal(props: Props) {
   }, [profileId]);
 
   function onBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
+    console.log("here are our facets", singleFacet, multiFacet);
+    // if (e.target === e.currentTarget) onClose();
   }
 
-  const handleGoToRestaurant = () => {
-    if (!restaurantId) return;
-    router.push(`/restaurants/${restaurantId}`);
-  };
+  const handleGoToItem = () => { if (itemId) { router.push(`/items/${itemId}`); onClose(); } };
+  const handleGoToRestaurant = () => { if (restaurantId) { router.push(`/restaurants/${restaurantId}`); onClose(); } };
+  const handleGoToReviewer = () => { if (profileId) { router.push(`/viewprofile/${profileId}`); onClose(); } };
 
   return (
     <div
@@ -71,7 +83,6 @@ export function ReviewModal(props: Props) {
       aria-modal="true"
     >
       <div className="relative w-full max-w-lg">
-        {/* Close */}
         <button
           aria-label="Close"
           onClick={onClose}
@@ -80,10 +91,8 @@ export function ReviewModal(props: Props) {
           <X className="h-4 w-4" />
         </button>
 
-        {/* Entire card scrolls (image included) */}
         <Card className="overflow-hidden rounded-2xl shadow-xl max-h-[85vh] sm:max-h-[80vh]">
           <div className="max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
-            {/* Media — reduced height; part of scrollable area */}
             {photoUrl ? (
               <img
                 src={photoUrl}
@@ -95,9 +104,7 @@ export function ReviewModal(props: Props) {
               <div className="w-full max-h-[24vh] h-24 bg-gradient-to-br from-slate-200 to-white dark:from-slate-800 dark:to-slate-900" />
             )}
 
-            {/* Content */}
             <div className="p-4 sm:p-6 space-y-4">
-              {/* Header: item + restaurant */}
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold leading-tight">{itemName}</h2>
@@ -114,7 +121,6 @@ export function ReviewModal(props: Props) {
                 </div>
               </div>
 
-              {/* Reviewer */}
               <div className="flex items-center gap-3">
                 <img
                   src={
@@ -132,57 +138,34 @@ export function ReviewModal(props: Props) {
                 </div>
               </div>
 
-              {/* Body (long text scrolls with everything else) */}
               {body ? (
-                <p className="text-sm leading-relaxed whitespace-pre-line">
-                  {body}
-                </p>
+                <p className="text-sm leading-relaxed whitespace-pre-line">{body}</p>
               ) : (
                 <p className="text-sm text-muted-foreground italic">No written review.</p>
               )}
+              <div className='flex w-full items-center justify-center'>
+              <ViewFacetPills
+                singleFacet={singleFacet ?? null}
+                multiFacet={multiFacet ?? null}
+              />
+              </div>
 
-              {/* CTAs */}
-        
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to item"
-                    title="Go to item"
-                    disabled
-                >
-                    <Utensils className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to item</span>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                <Button variant="outline" size="sm" className="justify-center gap-1" aria-label="Go to item" title="Go to item" onClick={handleGoToItem} disabled={!itemId}>
+                  <Utensils className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to item</span>
                 </Button>
-
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to restaurant"
-                    title="Go to restaurant"
-                    onClick={handleGoToRestaurant}
-                >
-                    <Building2 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to restaurant</span>
+                <Button variant="outline" size="sm" className="justify-center gap-1" aria-label="Go to restaurant" title="Go to restaurant" onClick={handleGoToRestaurant} disabled={!restaurantId}>
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to restaurant</span>
                 </Button>
-
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-center gap-1"
-                    aria-label="Go to reviewer"
-                    title="Go to reviewer"
-                    disabled
-                >
-                    <UserIcon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Go to reviewer</span>
+                <Button variant="outline" size="sm" className="justify-center gap-1" aria-label="Go to reviewer" title="Go to reviewer" onClick={handleGoToReviewer} disabled={!profileId}>
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Go to reviewer</span>
                 </Button>
-                </div>
-
               </div>
             </div>
+          </div>
         </Card>
       </div>
     </div>

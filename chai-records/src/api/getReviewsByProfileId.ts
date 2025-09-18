@@ -1,6 +1,7 @@
 // api/getReviewsByProfileId.ts
 import { Review } from "@/types/review";
 import { supabase } from "@/utils/supabase/supabase";
+import { getFacetsByReviewId } from "@/api/getFacetsByReviewId";
 
 export async function getReviewsByProfileId(profileId: string): Promise<Review[]> {
   const { data, error } = await supabase
@@ -28,9 +29,8 @@ export async function getReviewsByProfileId(profileId: string): Promise<Review[]
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((r: any) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const base = (data ?? []).map((r: any) => ({
     id: r.id as string,
     profileId: r.profile_id as string,
     createdAt: r.created_at as string,
@@ -42,4 +42,14 @@ export async function getReviewsByProfileId(profileId: string): Promise<Review[]
     restaurantName: r.item.restaurant.name as string,
     photoUrl: (r.review_images?.[0]?.url as string) ?? null,
   }));
+
+  // pull facets per review (simple N+1; fine for now)
+  const withFacets = await Promise.all(
+    base.map(async (row) => {
+      const fx = await getFacetsByReviewId(row.id);
+      return { ...row, singleFacet: fx.singleFacet, multiFacet: fx.multiFacet };
+    })
+  );
+
+  return withFacets as Review[];
 }

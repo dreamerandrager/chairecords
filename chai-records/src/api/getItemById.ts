@@ -82,32 +82,38 @@ function pickImageFromGallery(images: RawImage[] | undefined, metadata: Metadata
   return pickImageFromMetadata(metadata);
 }
 
-type RpcRow = {
-  item_id: string;             // function returns item_id as the first column
-  restaurant_id: string;
-  name: string;
-  slug: string | null;
-  description: string | null;
-  category: string;            // public.item_category
-  price_cents: number | null;
-  currency: string | null;     // char(3)
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  // The RPC also returns single_facets / multi_facets (jsonb), but we don't need them here.
-};
 
+function parseSingleFacet(j: unknown) {
+  if (!j || typeof j !== "object") return null;
+  const o = j as { name?: string; value?: string };
+  if (!o.name || !o.value) return null;
+  return { name: String(o.name), value: String(o.value) };
+}
+
+
+function parseMultiFacets(j: unknown) {
+  if (!j || typeof j !== "object") return [];
+  const o = j as { name?: string; values?: unknown };
+  const name = o.name ? String(o.name) : "Attribute";
+  const values = Array.isArray(o.values) ? o.values.map(String).filter(Boolean) : [];
+  return values.length ? [{ name, values }] : [];
+}
 export async function getItemById(id: string): Promise<Item | null> {
-  // 1) core item + consensus facets via RPC (typed table)
-  const { data: rpcRows, error: rpcErr } = await supabase.rpc("get_item_by_id_typed", {
-    p_item_id: id,
-  });
-
+  // Call the JSONB RPC you implemented in SQL
+  // (rename 'get_item_by_id_with_facets' here if your function name is different)
+  const { data: rpcData, error: rpcErr } = await supabase.rpc(
+    "get_item_by_id_with_facets",
+    { p_item_id: id }
+  );
   if (rpcErr) throw rpcErr;
-  const row = (rpcRows as RpcRow[] | null)?.[0];
+
+  // Your function may return either a single jsonb or SETOF jsonb;
+  // normalize to a single object.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: any | null = Array.isArray(rpcData) ? rpcData[0] ?? null : (rpcData ?? null);
   if (!row) return null;
 
-  // 2) fetch restaurant name + gallery images in parallel
+  // Fetch restaurant name & gallery images in parallel
   const [{ data: rest, error: restErr }, { data: imgs, error: imgErr }] = await Promise.all([
     supabase.from("restaurants").select("id,name").eq("id", row.restaurant_id).maybeSingle(),
     supabase.from("item_images").select("url,is_primary,sort_order").eq("item_id", id),
@@ -115,8 +121,9 @@ export async function getItemById(id: string): Promise<Item | null> {
   if (restErr) throw restErr;
   if (imgErr) throw imgErr;
 
-  // 3) normalize types
-  const metadata = null as Metadata; // RPC doesn’t include metadata; keep null to preserve Item shape
+  // Normalize types
+  const metadata = (row.metadata ?? null) as Record<string, unknown> | null;
+
   let priceCents: number | null = null;
   if (typeof row.price_cents === "number") {
     priceCents = row.price_cents;
@@ -133,21 +140,29 @@ export async function getItemById(id: string): Promise<Item | null> {
 
   const imageUrl = pickImageFromGallery(imgs as RawImage[] | undefined, metadata);
 
+  const consensusFacets = {
+    singleFacet: parseSingleFacet(row.single_facets),
+    multiFacets: parseMultiFacets(row.multi_facets),
+  };
+
+  console.log("getItemById: consensusFacets =", consensusFacets);
+
   return {
-    id: row.item_id, // note: RPC returns item_id
+    id: row.id,                                // note: RPC includes the items.* columns
     restaurantId: row.restaurant_id,
     restaurantName: (rest?.name ?? null) as string | null,
     name: row.name,
-    slug: row.slug ?? null,
-    description: row.description ?? null,
-    category: row.category,
+    slug: (row.slug ?? null) as string | null,
+    description: (row.description ?? null) as string | null,
+    category: row.category as string,
     priceCents,
     currency,
     isActive: Boolean(row.is_active),
-    sku: null,                  // not included by RPC; keep null to preserve type
+    sku: (row.sku ?? null) as string | null,   // available via to_jsonb(i)
     metadata,
     imageUrl: imageUrl ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    consensusFacets,
   } satisfies Item;
 }

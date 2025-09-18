@@ -66,6 +66,7 @@ export function RestaurantReviewsSection({
           {pageItems.map((r) => (
             <ReviewCard
               key={r.id}
+              itemId={r.itemId} // Added to enable ReviewModal item navigation from restaurant context.
               profileId={r.profileId}
               id={r.id}
               itemName={r.itemName}
