@@ -396,7 +396,8 @@ const canSubmit = useMemo(() => {
     debounceMs={250}
     previewOptions={true}
     previewCount={5}
-    disabled={!(brandId || restaurantOption?.meta?.brand_id)}
+    // Allow typing even when no brand is selected so users can still create
+    // an item; brand fallback logic is handled during submission.
   />
 
   {/* Optional helper + clear when locked */}
