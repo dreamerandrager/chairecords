@@ -48,6 +48,7 @@ export function FacetPills({
       try {
         const { values } = await getFacetValuesByName(facetName);
         if (!cancel) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mapped = (values ?? []).map((v: any) => ({
             id: v.id as number,
             value: String(v.value),

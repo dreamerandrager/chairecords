@@ -2,6 +2,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Restaurant } from "@/types/restaurant";
+import { SiGooglemaps } from "react-icons/si";
+
 
 function formatAddress(restaurant: Restaurant): string | null {
   const lines: string[] = [];
@@ -173,10 +175,17 @@ export function RestaurantDetails({ restaurant }: { restaurant: Restaurant }) {
 
         {mapUrl ? (
           <Button asChild>
-            <a href={mapUrl} target="_blank" rel="noreferrer">
-              View on Google Maps
-            </a>
-          </Button>
+          <a
+            href={mapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2"
+            aria-label="View on Google Maps"
+          >
+            <SiGooglemaps className="h-4 w-4" />
+            <span>View on Google Maps</span>
+          </a>
+        </Button>
         ) : null}
       </CardFooter>
     </Card>

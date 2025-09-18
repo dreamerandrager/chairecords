@@ -13,6 +13,7 @@ export async function getFacetsByReviewId(reviewId: string): Promise<ReviewFacet
   if (error) throw error;
 
   // data is jsonb with keys { singleFacet, multiFacet }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const d = (data as any) ?? {};
 //   console.log('Facets for review', reviewId, d);
   return {

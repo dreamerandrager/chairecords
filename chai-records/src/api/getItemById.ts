@@ -1,5 +1,5 @@
 // api/getItemById.ts
-import type { Item, ItemFacetSummary } from "@/types/item";
+import type { Item } from "@/types/item";
 import { supabase } from "@/utils/supabase/supabase";
 
 type RawImage = {

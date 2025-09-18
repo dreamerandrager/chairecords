@@ -27,7 +27,7 @@ export async function getReviewsByRestaurantId(restaurantId: string): Promise<Re
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const base = (data ?? []).map((r: any) => ({
     id: r.id as string,
     createdAt: r.created_at as string,

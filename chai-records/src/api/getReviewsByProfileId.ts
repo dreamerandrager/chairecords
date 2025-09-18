@@ -29,7 +29,7 @@ export async function getReviewsByProfileId(profileId: string): Promise<Review[]
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const base = (data ?? []).map((r: any) => ({
     id: r.id as string,
     profileId: r.profile_id as string,

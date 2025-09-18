@@ -24,6 +24,7 @@ export async function getReviewsByItemId(itemId: string): Promise<Review[]> {
   }));
 
   const withFacets = await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     base.map(async (row: any) => {
       const fx = await getFacetsByReviewId(row.id);
       return { ...row, singleFacet: fx.singleFacet, multiFacet: fx.multiFacet };
